@@ -1,0 +1,11 @@
+# Segredos
+.env
+.env.local
+.env.*.local
+
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
