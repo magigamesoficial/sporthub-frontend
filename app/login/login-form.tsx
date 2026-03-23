@@ -4,39 +4,45 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiJson, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { toast } from "sonner";
+
+type LoginOk = { token: string; user: { id: string; fullName: string } };
+type LoginErr = { error?: string; code?: string };
 
 export function LoginForm() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setSubmitting(true);
     try {
-      const r = await apiJson<
-        | { token: string; user: { id: string; fullName: string } }
-        | { error?: string }
-      >("/auth/login", {
+      const r = await apiJson<LoginOk | LoginErr>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ phone, password }),
       });
 
       if (!r.ok) {
-        const err = r.data as { error?: string };
-        setError(err.error ?? "Não foi possível entrar.");
+        toastFromApi(r.data as LoginErr, "Não foi possível entrar.");
         return;
       }
 
-      const ok = r.data as { token: string };
+      const ok = r.data as LoginOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
+      toast.success(`Bem-vindo, ${ok.user.fullName.split(" ")[0] ?? "de volta"}!`);
       router.push("/");
       router.refresh();
-    } catch {
-      setError("Erro de rede. Tente novamente.");
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -54,12 +60,6 @@ export function LoginForm() {
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-pitch-900/60 p-8">
         <h1 className="font-display text-2xl font-bold text-white">Entrar</h1>
         <p className="mt-1 text-sm text-slate-400">Use seu celular e senha.</p>
-
-        {error && (
-          <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {error}
-          </p>
-        )}
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { toast } from "sonner";
 
 type LegalBlock = { version: number; title: string; content: string };
 
@@ -14,13 +16,14 @@ type LegalResponse = {
 
 type CaptchaResponse = { token: string; prompt: string };
 
+type RegisterOk = { token: string; user: { id: string; fullName: string } };
+type RegisterErr = { error?: string; code?: string; details?: unknown };
+
 export function CadastroForm() {
   const router = useRouter();
   const [legal, setLegal] = useState<LegalResponse | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaResponse | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -32,30 +35,49 @@ export function CadastroForm() {
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
 
   const loadCaptcha = useCallback(async () => {
-    const r = await apiJson<CaptchaResponse>("/auth/captcha");
-    if (!r.ok) {
+    try {
+      const r = await apiJson<CaptchaResponse | RegisterErr>("/auth/captcha");
+      if (!r.ok) {
+        setCaptcha(null);
+        toastFromApi(r.data as RegisterErr, "Não foi possível carregar o captcha.");
+        return;
+      }
+      setCaptcha(r.data as CaptchaResponse);
+      setCaptchaAnswer("");
+    } catch (e) {
       setCaptcha(null);
-      return;
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
     }
-    setCaptcha(r.data);
-    setCaptchaAnswer("");
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const r = await apiJson<LegalResponse | { error?: string }>("/legal/active");
+        const r = await apiJson<LegalResponse | RegisterErr>("/legal/active");
         if (cancelled) return;
         if (!r.ok) {
-          const err = r.data as { error?: string };
-          setLoadError(err.error ?? "Não foi possível carregar os termos.");
+          const err = r.data as RegisterErr;
+          toastFromApi(err, "Não foi possível carregar os termos.");
           return;
         }
         setLegal(r.data as LegalResponse);
-        setLoadError(null);
-      } catch {
-        if (!cancelled) setLoadError("Não foi possível conectar à API.");
+      } catch (e) {
+        if (!cancelled) {
+          if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+            toast.error(
+              "A URL da API não está configurada neste ambiente. Avise o administrador.",
+            );
+          } else {
+            toastNetworkError();
+          }
+        }
       }
     })();
     return () => {
@@ -69,19 +91,15 @@ export function CadastroForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setFormError(null);
 
     if (!captcha) {
-      setFormError("Captcha indisponível. Atualize a página.");
+      toast.warning("Captcha indisponível. Toque em «Outro» ou atualize a página.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const r = await apiJson<
-        | { token: string; user: { id: string; fullName: string } }
-        | { error?: string; details?: unknown }
-      >("/auth/register", {
+      const r = await apiJson<RegisterOk | RegisterErr>("/auth/register", {
         method: "POST",
         body: JSON.stringify({
           fullName,
@@ -97,18 +115,24 @@ export function CadastroForm() {
       });
 
       if (!r.ok) {
-        const err = r.data as { error?: string };
-        setFormError(err.error ?? "Não foi possível criar a conta.");
+        toastFromApi(r.data as RegisterErr, "Não foi possível criar a conta.");
         await loadCaptcha();
         return;
       }
 
-      const ok = r.data as { token: string };
+      const ok = r.data as RegisterOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
+      toast.success("Conta criada com sucesso!");
       router.push("/");
       router.refresh();
-    } catch {
-      setFormError("Erro de rede. Tente novamente.");
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
       await loadCaptcha();
     } finally {
       setSubmitting(false);
@@ -129,18 +153,6 @@ export function CadastroForm() {
         <p className="mt-1 text-sm text-slate-400">
           Preencha os dados e aceite os documentos legais para continuar.
         </p>
-
-        {loadError && (
-          <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {loadError}
-          </p>
-        )}
-
-        {formError && (
-          <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {formError}
-          </p>
-        )}
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { toast } from "sonner";
 
 const SPORTS: { value: string; label: string }[] = [
   { value: "FOOTBALL", label: "Futebol" },
@@ -28,15 +30,15 @@ type GroupRow = {
   };
 };
 
+type ApiErr = { error?: string; code?: string };
+
 export function GruposPanel() {
   const router = useRouter();
   const [groups, setGroups] = useState<GroupRow[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [sport, setSport] = useState("FOOTBALL");
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [creating, setCreating] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token =
@@ -45,19 +47,28 @@ export function GruposPanel() {
       router.replace("/login");
       return;
     }
-    const r = await apiJsonAuth<{ groups: GroupRow[] } | { error?: string }>("/groups/mine");
-    if (r.status === 401) {
-      router.replace("/login");
-      return;
-    }
-    if (!r.ok) {
-      const err = r.data as { error?: string };
-      setLoadError(err.error ?? "Não foi possível carregar os grupos.");
+    try {
+      const r = await apiJsonAuth<{ groups: GroupRow[] } | ApiErr>("/groups/mine");
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível carregar os grupos.");
+        setGroups([]);
+        return;
+      }
+      setGroups((r.data as { groups: GroupRow[] }).groups);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
       setGroups([]);
-      return;
     }
-    setLoadError(null);
-    setGroups((r.data as { groups: GroupRow[] }).groups);
   }, [router]);
 
   useEffect(() => {
@@ -66,12 +77,11 @@ export function GruposPanel() {
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
-    setFormError(null);
     setCreating(true);
     try {
       const r = await apiJsonAuth<
         | { group: { publicCode: string; name: string } }
-        | { error?: string }
+        | ApiErr
       >("/groups", {
         method: "POST",
         body: JSON.stringify({ name, sport, visibility }),
@@ -81,14 +91,21 @@ export function GruposPanel() {
         return;
       }
       if (!r.ok) {
-        const err = r.data as { error?: string };
-        setFormError(err.error ?? "Não foi possível criar o grupo.");
+        toastFromApi(r.data as ApiErr, "Não foi possível criar o grupo.");
         return;
       }
+      const created = r.data as { group: { name: string } };
+      toast.success(`Grupo «${created.group.name}» criado.`);
       setName("");
       await load();
-    } catch {
-      setFormError("Erro de rede.");
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
     } finally {
       setCreating(false);
     }
@@ -107,25 +124,24 @@ export function GruposPanel() {
       <Link href="/" className="text-sm text-turf-bright hover:underline">
         ← Início
       </Link>
-      <h1 className="mt-4 font-display text-3xl font-bold text-white">Meus grupos</h1>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-display text-3xl font-bold text-white">Meus grupos</h1>
+        <Link
+          href="/grupos/entrar"
+          className="text-sm font-medium text-turf-bright hover:underline"
+        >
+          Entrar por código (público)
+        </Link>
+      </div>
       <p className="mt-1 text-sm text-slate-400">
         Crie um grupo (você será o presidente) ou veja os que já participa.
       </p>
-
-      {loadError && (
-        <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          {loadError}
-        </p>
-      )}
 
       <form
         onSubmit={onCreate}
         className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-pitch-900/60 p-6"
       >
         <h2 className="font-display text-lg font-semibold text-white">Novo grupo</h2>
-        {formError && (
-          <p className="text-sm text-red-300">{formError}</p>
-        )}
         <div>
           <label className="block text-sm text-slate-300" htmlFor="gname">
             Nome
@@ -189,8 +205,13 @@ export function GruposPanel() {
             key={row.group.id}
             className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
           >
-            <p className="font-medium text-white">{row.group.name}</p>
-            <p className="text-xs text-slate-400">
+            <Link
+              href={`/grupos/${row.group.id}`}
+              className="font-medium text-white hover:text-turf-bright"
+            >
+              {row.group.name}
+            </Link>
+            <p className="mt-1 text-xs text-slate-400">
               Código: <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
               {row.group.visibility === "PUBLIC" ? "Público" : "Privado"} · Papel: {row.role}
             </p>
