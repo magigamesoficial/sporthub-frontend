@@ -238,6 +238,13 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         <span className="text-turf-bright">
           {ROLE_LABELS[data.viewer.role] ?? data.viewer.role}
         </span>
+        {" · "}
+        <Link
+          href={`/grupos/${groupId}/mensalidades`}
+          className="font-medium text-turf-bright hover:underline"
+        >
+          Mensalidades
+        </Link>
       </p>
 
       {data.viewer.canApproveJoinRequests && pendingJoin.length > 0 && (
