@@ -245,6 +245,13 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         >
           Mensalidades
         </Link>
+        {" · "}
+        <Link
+          href={`/grupos/${groupId}/jogos`}
+          className="font-medium text-turf-bright hover:underline"
+        >
+          Jogos
+        </Link>
       </p>
 
       {data.viewer.canApproveJoinRequests && pendingJoin.length > 0 && (

@@ -1,10 +1,12 @@
+import { PUBLIC_API_BASE_PRODUCTION } from "./api-config";
+
 export const TOKEN_STORAGE_KEY = "sporthub_token";
 
 export function getApiBase(): string {
   const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
   if (!base) {
     throw new Error(
-      "NEXT_PUBLIC_API_URL não está configurada. Na Vercel: Settings → Environment Variables → NEXT_PUBLIC_API_URL = URL pública do backend (ex.: https://seu-app.onrender.com), sem barra no final; em seguida Redeploy. Variáveis NEXT_PUBLIC_* entram no build do Next.",
+      `NEXT_PUBLIC_API_URL não está configurada. Na Vercel: Settings → Environment Variables → NEXT_PUBLIC_API_URL = ${PUBLIC_API_BASE_PRODUCTION} (sem barra no final); em seguida Redeploy. Variáveis NEXT_PUBLIC_* entram no build do Next.`,
     );
   }
   return base;

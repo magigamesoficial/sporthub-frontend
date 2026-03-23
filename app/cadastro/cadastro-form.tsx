@@ -30,6 +30,7 @@ export function CadastroForm() {
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
@@ -122,8 +123,8 @@ export function CadastroForm() {
 
       const ok = r.data as RegisterOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
-      toast.success("Conta criada com sucesso!");
-      router.push("/");
+      toast.success(`Conta criada! Olá, ${ok.user.fullName.split(" ")[0] ?? "bem-vindo"}!`);
+      router.replace("/grupos");
       router.refresh();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
@@ -226,6 +227,22 @@ export function CadastroForm() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300" htmlFor="passwordConfirm">
+              Redigitar senha
+            </label>
+            <input
+              id="passwordConfirm"
+              name="passwordConfirm"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"
             />
           </div>

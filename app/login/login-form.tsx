@@ -33,7 +33,7 @@ export function LoginForm() {
       const ok = r.data as LoginOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
       toast.success(`Bem-vindo, ${ok.user.fullName.split(" ")[0] ?? "de volta"}!`);
-      router.push("/");
+      router.replace("/grupos");
       router.refresh();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {

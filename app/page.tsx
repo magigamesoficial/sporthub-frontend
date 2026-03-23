@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HomeRedirectIfAuthed } from "./home-redirect-if-authed";
 
 const features = [
   {
@@ -38,6 +39,7 @@ const features = [
 export default function HomePage() {
   return (
     <div className="relative overflow-hidden">
+      <HomeRedirectIfAuthed />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
