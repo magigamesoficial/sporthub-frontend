@@ -16,6 +16,7 @@ type ScoutSettingsResponse = {
     key: string;
     label: string;
     sortOrder: number;
+    isActive?: boolean;
     enabled: boolean;
   }[];
 };

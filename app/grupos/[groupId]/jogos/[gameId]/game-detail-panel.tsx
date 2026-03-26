@@ -51,7 +51,7 @@ type GameDetailResponse = {
   };
   scout: {
     enabledMetricIds: string[];
-    optionalMetrics: { id: string; key: string; label: string }[];
+    optionalMetrics: { id: string; key: string; label: string; isActive?: boolean }[];
   };
   members: {
     userId: string;
@@ -314,6 +314,7 @@ export function GameDetailPanel({
     const stats: { userId: string; metricDefinitionId: string; value: number }[] = [];
     for (const m of data.members) {
       for (const met of data.scout.optionalMetrics) {
+        if (met.isActive === false) continue; // métrica desativada: não envia (histórico só leitura)
         const v = Math.max(0, Math.floor(scoutDraft[m.userId]?.[met.id] ?? 0));
         stats.push({ userId: m.userId, metricDefinitionId: met.id, value: v });
       }
@@ -727,7 +728,8 @@ export function GameDetailPanel({
         <div className="mt-8 rounded-2xl border border-white/10 bg-pitch-950/50 p-6">
           <h2 className="font-display text-lg font-semibold text-white">Scouts opcionais</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Gols, assistências, etc. (conforme configurado no grupo). Use 0 para apagar.
+            Gols, assistências, etc. (conforme configurado no grupo). Use 0 para apagar. Colunas de
+            métricas desativadas pela plataforma ficam só leitura.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
@@ -737,6 +739,11 @@ export function GameDetailPanel({
                   {scout.optionalMetrics.map((met) => (
                     <th key={met.id} className="py-2 px-1 font-medium text-slate-400">
                       {met.label}
+                      {met.isActive === false ? (
+                        <span className="ml-1 text-[0.65rem] font-normal text-amber-200/80">
+                          (desativada)
+                        </span>
+                      ) : null}
                     </th>
                   ))}
                 </tr>
@@ -753,13 +760,19 @@ export function GameDetailPanel({
                           type="number"
                           min={0}
                           inputMode="numeric"
+                          disabled={met.isActive === false}
+                          title={
+                            met.isActive === false
+                              ? "Métrica desativada na plataforma — valores antigos permanecem visíveis."
+                              : undefined
+                          }
                           value={
                             scoutDraft[m.userId]?.[met.id] === undefined
                               ? ""
                               : scoutDraft[m.userId]![met.id]
                           }
                           onChange={(e) => updateScoutCell(m.userId, met.id, e.target.value)}
-                          className="w-16 rounded border border-white/15 bg-pitch-950 px-2 py-1 text-white outline-none focus:ring-1 focus:ring-turf/50"
+                          className="w-16 rounded border border-white/15 bg-pitch-950 px-2 py-1 text-white outline-none focus:ring-1 focus:ring-turf/50 disabled:cursor-not-allowed disabled:opacity-60"
                         />
                       </td>
                     ))}

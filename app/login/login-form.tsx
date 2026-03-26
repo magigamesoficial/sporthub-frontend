@@ -8,7 +8,7 @@ import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
 type LoginOk = { token: string; user: { id: string; fullName: string } };
-type LoginErr = { error?: string; code?: string };
+type LoginErr = { error?: string; code?: string; reason?: string | null };
 
 export function LoginForm() {
   const router = useRouter();
@@ -18,8 +18,20 @@ export function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("session") !== "expired") return;
-    toast.error("Sessão expirada ou inválida. Entre novamente com seu celular e senha.");
+    const session = searchParams.get("session");
+    if (session === "expired") {
+      toast.error("Sessão expirada ou inválida. Entre novamente com seu celular e senha.");
+      return;
+    }
+    const account = searchParams.get("account");
+    if (account === "banned" || account === "blocked") {
+      const reason = searchParams.get("reason");
+      const label =
+        account === "banned"
+          ? "Esta conta foi banida e não pode acessar a plataforma."
+          : "Esta conta está suspensa e não pode acessar a plataforma.";
+      toast.error(reason ? `${label} Motivo informado: ${reason}` : label);
+    }
   }, [searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -32,7 +44,19 @@ export function LoginForm() {
       });
 
       if (!r.ok) {
-        toastFromApi(r.data as LoginErr, "Não foi possível entrar.");
+        const err = r.data as LoginErr;
+        if (
+          r.status === 403 &&
+          (err.code === "ACCOUNT_BLOCKED" || err.code === "ACCOUNT_BANNED")
+        ) {
+          const base =
+            err.code === "ACCOUNT_BANNED"
+              ? "Conta banida — não é possível entrar."
+              : "Conta suspensa — não é possível entrar.";
+          toast.error(err.reason ? `${base} Motivo: ${err.reason}` : base);
+          return;
+        }
+        toastFromApi(err, "Não foi possível entrar.");
         return;
       }
 

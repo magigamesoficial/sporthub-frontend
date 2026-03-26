@@ -25,6 +25,7 @@ function navActive(pathname: string, href: string): boolean {
   if (href === "/grupos/buscar") return pathname.startsWith("/grupos/buscar");
   if (href === "/grupos/entrar") return pathname.startsWith("/grupos/entrar");
   if (href === "/conta") return pathname === "/conta";
+  if (href === "/admin") return pathname.startsWith("/admin");
   if (href === "/grupos") return isMyGroupsSection(pathname);
   return false;
 }
@@ -93,6 +94,18 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
               {item.label}
             </Link>
           ))}
+          {user?.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                navActive(pathname, "/admin")
+                  ? "bg-amber-500/20 text-amber-100"
+                  : "text-amber-200/90 hover:bg-amber-500/10 hover:text-amber-50"
+              }`}
+            >
+              Administração
+            </Link>
+          )}
         </nav>
         <div className="border-t border-white/10 p-3 text-xs text-slate-500">
           {user === undefined ? "…" : authed ? <span className="line-clamp-2">{user.fullName}</span> : null}
@@ -128,6 +141,16 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
                   {item.label.replace(" grupos", "")}
                 </Link>
               ))}
+              {user?.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  className={`rounded-md px-2 py-1 ${
+                    navActive(pathname, "/admin") ? "bg-amber-500/20 text-amber-100" : "text-amber-200/80"
+                  }`}
+                >
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
         </header>

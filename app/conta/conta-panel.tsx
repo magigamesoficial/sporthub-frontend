@@ -115,6 +115,13 @@ export function ContaPanel() {
           </dd>
         </div>
       </dl>
+      {user.role === "ADMIN" && (
+        <p className="mt-6 text-sm">
+          <Link href="/admin" className="font-medium text-amber-200 hover:text-amber-100 hover:underline">
+            Abrir painel de administração da plataforma →
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

@@ -65,6 +65,20 @@ export async function apiJsonAuth<T>(
 
   const data = (await res.json().catch(() => ({}))) as T;
 
+  if (typeof window !== "undefined" && res.status === 403) {
+    const d = data as { code?: string; reason?: string | null };
+    if (d.code === "ACCOUNT_BLOCKED" || d.code === "ACCOUNT_BANNED") {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      const kind = d.code === "ACCOUNT_BANNED" ? "banned" : "blocked";
+      const reasonQ =
+        d.reason != null && String(d.reason).length > 0
+          ? `&reason=${encodeURIComponent(String(d.reason))}`
+          : "";
+      window.location.assign(`/login?account=${kind}${reasonQ}`);
+      return { ok: false, status: res.status, data };
+    }
+  }
+
   redirectIfSessionInvalid(res.status);
 
   return { ok: res.ok, status: res.status, data };
