@@ -36,6 +36,19 @@ export function getAuthHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
+function redirectIfSessionInvalid(status: number): void {
+  if (typeof window === "undefined" || status !== 401) return;
+  const p = window.location.pathname;
+  if (p.startsWith("/login") || p.startsWith("/cadastro")) return;
+
+  const hadToken = Boolean(window.localStorage.getItem(TOKEN_STORAGE_KEY));
+  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+
+  if (!hadToken) return;
+
+  window.location.assign("/login?session=expired");
+}
+
 /** `fetch` JSON com `Authorization: Bearer` por último (sobrescreve header homônimo do init). */
 export async function apiJsonAuth<T>(
   path: string,
@@ -51,5 +64,8 @@ export async function apiJsonAuth<T>(
   });
 
   const data = (await res.json().catch(() => ({}))) as T;
+
+  redirectIfSessionInvalid(res.status);
+
   return { ok: res.ok, status: res.status, data };
 }

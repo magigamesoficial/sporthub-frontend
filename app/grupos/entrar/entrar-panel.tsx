@@ -108,8 +108,8 @@ export function EntrarPanel() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
-      <Link href="/grupos" className="text-sm text-turf-bright hover:underline">
-        ← Meus grupos
+      <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+        ← Painel inicial
       </Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-white">
         Entrar em grupo público

@@ -12,12 +12,14 @@ type GameRow = {
   title: string;
   location: string | null;
   startsAt: string;
+  outcome: string | null;
   createdAt: string;
   createdBy: { id: string; fullName: string } | null;
   counts: { GOING: number; MAYBE: number; NOT_GOING: number };
 };
 
 type GamesResponse = {
+  listWhen?: "future" | "past";
   viewer: { canManageGames: boolean };
   games: GameRow[];
 };
@@ -39,6 +41,12 @@ function formatGameWhen(iso: string): string {
   }
 }
 
+const OUTCOME_BADGE: Record<string, string> = {
+  WIN: "Vitória",
+  DRAW: "Empate",
+  LOSS: "Derrota",
+};
+
 function defaultDatetimeLocalValue(): string {
   const d = new Date(Date.now() + 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -47,6 +55,7 @@ function defaultDatetimeLocalValue(): string {
 
 export function JogosPanel({ groupId }: { groupId: string }) {
   const router = useRouter();
+  const [listWhen, setListWhen] = useState<"future" | "past">("future");
   const [data, setData] = useState<GamesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -61,9 +70,11 @@ export function JogosPanel({ groupId }: { groupId: string }) {
       router.replace("/login");
       return;
     }
+    setData(null);
     setLoading(true);
     try {
-      const r = await apiJsonAuth<GamesResponse | ApiErr>(`/groups/${groupId}/games`);
+      const q = listWhen === "past" ? "?when=past" : "";
+      const r = await apiJsonAuth<GamesResponse | ApiErr>(`/groups/${groupId}/games${q}`);
       if (r.status === 401) {
         router.replace("/login");
         return;
@@ -91,7 +102,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [groupId, router]);
+  }, [groupId, listWhen, router]);
 
   useEffect(() => {
     void load();
@@ -99,8 +110,10 @@ export function JogosPanel({ groupId }: { groupId: string }) {
 
   const emptyHint = useMemo(
     () =>
-      "Nenhum jogo agendado a partir de ontem. Crie o próximo — todos os membros podem marcar presença.",
-    [],
+      listWhen === "future"
+        ? "Nenhum jogo futuro agendado. Crie o próximo — todos os membros podem marcar presença."
+        : "Ainda não há jogos no passado neste grupo.",
+    [listWhen],
   );
 
   async function onCreate(e: React.FormEvent) {
@@ -231,7 +244,34 @@ export function JogosPanel({ groupId }: { groupId: string }) {
         </button>
       </form>
 
-      <h2 className="mt-10 font-display text-lg font-semibold text-white">Próximos jogos</h2>
+      <div className="mt-10 flex flex-wrap gap-2 border-b border-white/10 pb-3">
+        <button
+          type="button"
+          onClick={() => setListWhen("future")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+            listWhen === "future"
+              ? "bg-turf text-pitch-950"
+              : "text-slate-400 hover:bg-white/5 hover:text-white"
+          }`}
+        >
+          Próximos
+        </button>
+        <button
+          type="button"
+          onClick={() => setListWhen("past")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+            listWhen === "past"
+              ? "bg-turf text-pitch-950"
+              : "text-slate-400 hover:bg-white/5 hover:text-white"
+          }`}
+        >
+          Passados
+        </button>
+      </div>
+
+      <h2 className="mt-4 font-display text-lg font-semibold text-white">
+        {listWhen === "future" ? "Próximos jogos" : "Histórico"}
+      </h2>
       {data.games.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">{emptyHint}</p>
       ) : (
@@ -242,7 +282,21 @@ export function JogosPanel({ groupId }: { groupId: string }) {
                 href={`/grupos/${groupId}/jogos/${g.id}`}
                 className="block rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-4 transition hover:border-turf/30 hover:bg-pitch-950/60"
               >
-                <p className="font-medium text-white">{g.title}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-white">{g.title}</p>
+                  {listWhen === "past" && (
+                    <span className="flex flex-wrap gap-1">
+                      <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-slate-400">
+                        Realizado
+                      </span>
+                      {g.outcome && (
+                        <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
+                          {OUTCOME_BADGE[g.outcome] ?? g.outcome}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-sm text-turf-bright/90">{formatGameWhen(g.startsAt)}</p>
                 {g.location && (
                   <p className="mt-1 text-xs text-slate-400">{g.location}</p>

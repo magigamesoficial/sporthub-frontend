@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { apiJson, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
@@ -12,9 +12,15 @@ type LoginErr = { error?: string; code?: string };
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("session") !== "expired") return;
+    toast.error("Sessão expirada ou inválida. Entre novamente com seu celular e senha.");
+  }, [searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +39,7 @@ export function LoginForm() {
       const ok = r.data as LoginOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
       toast.success(`Bem-vindo, ${ok.user.fullName.split(" ")[0] ?? "de volta"}!`);
-      router.replace("/grupos");
+      router.replace("/dashboard");
       router.refresh();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {

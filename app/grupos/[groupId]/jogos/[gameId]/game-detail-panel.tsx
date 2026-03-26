@@ -21,6 +21,12 @@ const STATUS_LABEL: Record<string, string> = {
   NOT_GOING: "Não vou",
 };
 
+const OUTCOME_LABEL: Record<string, string> = {
+  WIN: "Vitória",
+  DRAW: "Empate",
+  LOSS: "Derrota",
+};
+
 type AttendanceStatus = "GOING" | "MAYBE" | "NOT_GOING";
 
 type GameDetailResponse = {
@@ -30,6 +36,7 @@ type GameDetailResponse = {
     location: string | null;
     startsAt: string;
     createdAt: string;
+    outcome: string | null;
     createdBy: { id: string; fullName: string } | null;
   };
   viewer: {
@@ -37,12 +44,17 @@ type GameDetailResponse = {
     canManageGames: boolean;
     myStatus: AttendanceStatus | null;
   };
+  scout: {
+    enabledMetricIds: string[];
+    optionalMetrics: { id: string; key: string; label: string }[];
+  };
   members: {
     userId: string;
     fullName: string;
     phone: string;
     role: string;
     attendance: { status: AttendanceStatus; updatedAt: string } | null;
+    scoutValues: { metricId: string; value: number }[];
   }[];
 };
 
@@ -75,6 +87,9 @@ export function GameDetailPanel({
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [outcomeSaving, setOutcomeSaving] = useState(false);
+  const [scoutDraft, setScoutDraft] = useState<Record<string, Record<string, number>>>({});
+  const [scoutSaving, setScoutSaving] = useState(false);
 
   const load = useCallback(async () => {
     const token =
@@ -97,7 +112,16 @@ export function GameDetailPanel({
         setData(null);
         return;
       }
-      setData(r.data as GameDetailResponse);
+      const payload = r.data as GameDetailResponse;
+      setData(payload);
+      const next: Record<string, Record<string, number>> = {};
+      for (const m of payload.members) {
+        next[m.userId] = {};
+        for (const sv of m.scoutValues) {
+          next[m.userId][sv.metricId] = sv.value;
+        }
+      }
+      setScoutDraft(next);
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -144,6 +168,83 @@ export function GameDetailPanel({
     } finally {
       setSavingStatus(false);
     }
+  }
+
+  async function setOutcome(outcome: "WIN" | "DRAW" | "LOSS" | null) {
+    setOutcomeSaving(true);
+    try {
+      const r = await apiJsonAuth<{ game?: { outcome: string | null } } | ApiErr>(
+        `/groups/${groupId}/games/${gameId}`,
+        { method: "PATCH", body: JSON.stringify({ outcome }) },
+      );
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível salvar o resultado.");
+        return;
+      }
+      toast.success("Resultado atualizado.");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setOutcomeSaving(false);
+    }
+  }
+
+  async function saveScouts() {
+    if (!data) return;
+    const stats: { userId: string; metricDefinitionId: string; value: number }[] = [];
+    for (const m of data.members) {
+      for (const met of data.scout.optionalMetrics) {
+        const v = Math.max(0, Math.floor(scoutDraft[m.userId]?.[met.id] ?? 0));
+        stats.push({ userId: m.userId, metricDefinitionId: met.id, value: v });
+      }
+    }
+    setScoutSaving(true);
+    try {
+      const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
+        `/groups/${groupId}/games/${gameId}/scout-stats`,
+        { method: "PUT", body: JSON.stringify({ stats }) },
+      );
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível salvar os scouts.");
+        return;
+      }
+      toast.success("Scouts salvos.");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setScoutSaving(false);
+    }
+  }
+
+  function updateScoutCell(userId: string, metricId: string, raw: string) {
+    const n = Number.parseInt(raw, 10);
+    const v = Number.isFinite(n) && n >= 0 ? n : 0;
+    setScoutDraft((prev) => ({
+      ...prev,
+      [userId]: { ...prev[userId], [metricId]: v },
+    }));
   }
 
   async function onDelete() {
@@ -194,16 +295,22 @@ export function GameDetailPanel({
     );
   }
 
-  const { game, viewer, members } = data;
+  const { game, viewer, members, scout } = data;
+  const isPast = new Date(game.startsAt).getTime() < Date.now();
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="mx-auto max-w-4xl px-4 py-10">
       <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
         ← Lista de jogos
       </Link>
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">{game.title}</h1>
       <p className="mt-2 text-lg text-turf-bright/90">{formatGameWhen(game.startsAt)}</p>
+      {game.outcome && (
+        <p className="mt-2 text-sm font-medium text-emerald-200/90">
+          Resultado registrado: {OUTCOME_LABEL[game.outcome] ?? game.outcome}
+        </p>
+      )}
       {game.location && <p className="mt-2 text-sm text-slate-400">{game.location}</p>}
       {game.createdBy && (
         <p className="mt-1 text-xs text-slate-500">Agendado por {game.createdBy.fullName}</p>
@@ -235,6 +342,97 @@ export function GameDetailPanel({
           ))}
         </div>
       </div>
+
+      {viewer.canManageGames && isPast && (
+        <div className="mt-8 rounded-2xl border border-turf/25 bg-turf/5 p-6">
+          <h2 className="font-display text-lg font-semibold text-white">Resultado do jogo</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Usado para vitórias, empates, derrotas, pontos e aproveitamento no ranking (quem
+            confirmou &quot;Vou&quot; entra nas contagens).
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["WIN", "DRAW", "LOSS"] as const).map((o) => (
+              <button
+                key={o}
+                type="button"
+                disabled={outcomeSaving}
+                onClick={() => void setOutcome(o)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
+                  game.outcome === o
+                    ? "bg-turf text-pitch-950"
+                    : "border border-white/20 text-slate-200 hover:bg-white/5"
+                }`}
+              >
+                {OUTCOME_LABEL[o]}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={outcomeSaving || !game.outcome}
+              onClick={() => void setOutcome(null)}
+              className="rounded-xl border border-white/15 px-4 py-2 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50"
+            >
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {viewer.canManageGames && scout.optionalMetrics.length > 0 && (
+        <div className="mt-8 rounded-2xl border border-white/10 bg-pitch-950/50 p-6">
+          <h2 className="font-display text-lg font-semibold text-white">Scouts opcionais</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Métricas habilitadas nas configurações do grupo. Use 0 para apagar o lançamento.
+          </p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-slate-500">
+                  <th className="py-2 pr-3 font-medium">Atleta</th>
+                  {scout.optionalMetrics.map((met) => (
+                    <th key={met.id} className="py-2 px-1 font-medium text-slate-400">
+                      {met.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.userId} className="border-b border-white/5">
+                    <td className="py-2 pr-3 text-slate-200">
+                      <span className="font-medium text-white">{m.fullName}</span>
+                    </td>
+                    {scout.optionalMetrics.map((met) => (
+                      <td key={met.id} className="py-1 px-1">
+                        <input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={
+                            scoutDraft[m.userId]?.[met.id] === undefined
+                              ? ""
+                              : scoutDraft[m.userId]![met.id]
+                          }
+                          onChange={(e) => updateScoutCell(m.userId, met.id, e.target.value)}
+                          className="w-16 rounded border border-white/15 bg-pitch-950 px-2 py-1 text-white outline-none focus:ring-1 focus:ring-turf/50"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            disabled={scoutSaving}
+            onClick={() => void saveScouts()}
+            className="mt-4 rounded-xl bg-turf px-5 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+          >
+            {scoutSaving ? "Salvando…" : "Salvar scouts"}
+          </button>
+        </div>
+      )}
 
       {viewer.canManageGames && (
         <div className="mt-6">

@@ -15,11 +15,14 @@ const ROLE_LABELS: Record<string, string> = {
   MEMBER: "Membro",
 };
 
+type FeePlan = { id: string; name: string; amountCents: number };
+
 type MemberRow = {
   membershipId: string;
   userId: string;
   role: string;
   joinedAt: string;
+  feePlan: FeePlan | null;
   user: { id: string; fullName: string; phone: string; email: string };
 };
 
@@ -29,6 +32,7 @@ type MembersResponse = {
     role: string;
     canInviteByPhone: boolean;
     canApproveJoinRequests: boolean;
+    canManageMonthlyFees: boolean;
   };
   members: MemberRow[];
 };
@@ -41,14 +45,20 @@ type JoinRequestRow = {
 
 type ApiErr = { error?: string; code?: string };
 
+function formatBrlFromCents(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function GroupDetail({ groupId }: { groupId: string }) {
   const router = useRouter();
   const [data, setData] = useState<MembersResponse | null>(null);
+  const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [blocked, setBlocked] = useState(false);
   const [phone, setPhone] = useState("");
   const [inviting, setInviting] = useState(false);
   const [pendingJoin, setPendingJoin] = useState<JoinRequestRow[]>([]);
   const [joinActionId, setJoinActionId] = useState<string | null>(null);
+  const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token =
@@ -80,6 +90,20 @@ export function GroupDetail({ groupId }: { groupId: string }) {
       setBlocked(false);
       const payload = r.data as MembersResponse;
       setData(payload);
+
+      if (payload.viewer.canManageMonthlyFees) {
+        const pr = await apiJsonAuth<{ plans: FeePlan[] } | ApiErr>(
+          `/groups/${groupId}/fee-plans`,
+        );
+        if (pr.ok) {
+          setFeePlans((pr.data as { plans: FeePlan[] }).plans);
+        } else {
+          setFeePlans([]);
+          toastFromApi(pr.data as ApiErr, "Não foi possível carregar os planos de mensalidade.");
+        }
+      } else {
+        setFeePlans([]);
+      }
 
       if (payload.viewer.canApproveJoinRequests) {
         const jr = await apiJsonAuth<{ requests: JoinRequestRow[] } | ApiErr>(
@@ -113,13 +137,19 @@ export function GroupDetail({ groupId }: { groupId: string }) {
 
   async function onInvite(e: React.FormEvent) {
     e.preventDefault();
+    const phoneTrim = phone.trim();
+    const digits = phoneTrim.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Informe o celular com DDD (10 ou 11 dígitos), ex.: 11987654321.");
+      return;
+    }
     setInviting(true);
     try {
       const r = await apiJsonAuth<{ member?: unknown } | ApiErr>(
         `/groups/${groupId}/members/invite`,
         {
           method: "POST",
-          body: JSON.stringify({ phone }),
+          body: JSON.stringify({ phone: phoneTrim }),
         },
       );
       if (r.status === 401) {
@@ -206,11 +236,43 @@ export function GroupDetail({ groupId }: { groupId: string }) {
     }
   }
 
+  async function assignFeePlan(targetUserId: string, feePlanId: string | null) {
+    setAssigningUserId(targetUserId);
+    try {
+      const r = await apiJsonAuth<
+        { member: { userId: string; feePlan: FeePlan | null } } | ApiErr
+      >(`/groups/${groupId}/members/${targetUserId}/fee-plan`, {
+        method: "PATCH",
+        body: JSON.stringify({ feePlanId }),
+      });
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível atualizar o plano.");
+        return;
+      }
+      toast.success("Plano de mensalidade atualizado.");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setAssigningUserId(null);
+    }
+  }
+
   if (blocked && !data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
-        <Link href="/grupos" className="text-sm text-turf-bright hover:underline">
-          ← Meus grupos
+        <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+          ← Painel inicial
         </Link>
         <p className="mt-6 text-sm text-slate-400">
           Confira a notificação na tela para o motivo ou volte à lista de grupos.
@@ -230,7 +292,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <Link href="/grupos" className="text-sm text-turf-bright hover:underline">
-        ← Meus grupos
+        ← Lista de grupos
       </Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Membros do grupo</h1>
       <p className="mt-1 text-sm text-slate-400">
@@ -251,6 +313,27 @@ export function GroupDetail({ groupId }: { groupId: string }) {
           className="font-medium text-turf-bright hover:underline"
         >
           Jogos
+        </Link>
+        {" · "}
+        <Link
+          href={`/grupos/${groupId}/caixa`}
+          className="font-medium text-turf-bright hover:underline"
+        >
+          Caixa
+        </Link>
+        {" · "}
+        <Link
+          href={`/grupos/${groupId}/scouts`}
+          className="font-medium text-turf-bright hover:underline"
+        >
+          Scouts
+        </Link>
+        {" · "}
+        <Link
+          href={`/grupos/${groupId}/visao`}
+          className="font-medium text-turf-bright/80 hover:underline"
+        >
+          Perfil público
         </Link>
       </p>
 
@@ -336,6 +419,40 @@ export function GroupDetail({ groupId }: { groupId: string }) {
             <p className="text-xs text-slate-400">
               {ROLE_LABELS[m.role] ?? m.role} · {m.user.phone} · {m.user.email}
             </p>
+            {m.feePlan && (
+              <p className="mt-1 text-xs text-slate-500">
+                Plano: {m.feePlan.name} ({formatBrlFromCents(m.feePlan.amountCents)})
+              </p>
+            )}
+            {data.viewer.canManageMonthlyFees && feePlans.length > 0 && (
+              <div className="mt-2">
+                <label className="sr-only" htmlFor={`plan-${m.userId}`}>
+                  Plano de mensalidade para {m.user.fullName}
+                </label>
+                <select
+                  id={`plan-${m.userId}`}
+                  disabled={assigningUserId !== null}
+                  value={m.feePlan?.id ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    void assignFeePlan(m.userId, v === "" ? null : v);
+                  }}
+                  className="max-w-full rounded-lg border border-white/15 bg-pitch-950/80 px-2 py-1.5 text-xs text-white outline-none focus:ring-2 focus:ring-turf/40"
+                >
+                  <option value="">Sem plano (defina antes de marcar pago)</option>
+                  {feePlans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {formatBrlFromCents(p.amountCents)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {data.viewer.canManageMonthlyFees && feePlans.length === 0 && (
+              <p className="mt-2 text-xs text-amber-200/80">
+                Crie planos de mensalidade na página de mensalidades para atribuir valores.
+              </p>
+            )}
           </li>
         ))}
       </ul>

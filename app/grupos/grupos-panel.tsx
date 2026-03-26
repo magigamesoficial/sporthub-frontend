@@ -121,17 +121,19 @@ export function GruposPanel() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/" className="text-sm text-turf-bright hover:underline">
-        ← Início
+      <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+        ← Painel inicial
       </Link>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-3xl font-bold text-white">Meus grupos</h1>
-        <Link
-          href="/grupos/entrar"
-          className="text-sm font-medium text-turf-bright hover:underline"
-        >
-          Entrar por código (público)
-        </Link>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-turf-bright">
+          <Link href="/grupos/buscar" className="hover:underline">
+            Buscar grupos
+          </Link>
+          <Link href="/grupos/entrar" className="hover:underline">
+            Entrar por código
+          </Link>
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-400">
         Crie um grupo (você será o presidente) ou veja os que já participa.

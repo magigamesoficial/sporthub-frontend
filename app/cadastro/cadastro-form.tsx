@@ -124,7 +124,7 @@ export function CadastroForm() {
       const ok = r.data as RegisterOk;
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
       toast.success(`Conta criada! Olá, ${ok.user.fullName.split(" ")[0] ?? "bem-vindo"}!`);
-      router.replace("/grupos");
+      router.replace("/dashboard");
       router.refresh();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {

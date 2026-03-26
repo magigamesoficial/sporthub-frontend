@@ -15,13 +15,17 @@ const ROLE_LABELS: Record<string, string> = {
   MEMBER: "Membro",
 };
 
+type FeePlan = { id: string; name: string; amountCents: number };
+
 type FeeRow = {
   userId: string;
   fullName: string;
   phone: string;
   role: string;
+  feePlan: FeePlan | null;
   paid: boolean;
   paidAt: string | null;
+  paidWithPlan: FeePlan | null;
   recordedByName: string | null;
 };
 
@@ -60,12 +64,21 @@ function formatPaidAt(iso: string | null): string {
   }
 }
 
+function formatBrlFromCents(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function MensalidadesPanel({ groupId }: { groupId: string }) {
   const router = useRouter();
   const [yearMonth, setYearMonth] = useState(currentYearMonthLocal);
   const [data, setData] = useState<FeesResponse | null>(null);
+  const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingUserId, setActingUserId] = useState<string | null>(null);
+  const [planName, setPlanName] = useState("");
+  const [planAmount, setPlanAmount] = useState("");
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token =
@@ -91,9 +104,23 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       if (!r.ok) {
         toastFromApi(r.data as ApiErr, "Não foi possível carregar as mensalidades.");
         setData(null);
+        setFeePlans([]);
         return;
       }
-      setData(r.data as FeesResponse);
+      const payload = r.data as FeesResponse;
+      setData(payload);
+      if (payload.viewer.canManageMonthlyFees) {
+        const pr = await apiJsonAuth<{ plans: FeePlan[] } | ApiErr>(
+          `/groups/${groupId}/fee-plans`,
+        );
+        if (pr.ok) {
+          setFeePlans((pr.data as { plans: FeePlan[] }).plans);
+        } else {
+          setFeePlans([]);
+        }
+      } else {
+        setFeePlans([]);
+      }
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -117,6 +144,83 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
     const paid = data.rows.filter((x) => x.paid).length;
     return { paid, open: data.rows.length - paid };
   }, [data]);
+
+  async function createFeePlan(e: React.FormEvent) {
+    e.preventDefault();
+    const name = planName.trim();
+    const n = Number(String(planAmount).replace(",", "."));
+    if (!name) {
+      toast.error("Informe o nome do plano.");
+      return;
+    }
+    if (!Number.isFinite(n) || n <= 0) {
+      toast.error("Informe um valor em reais maior que zero.");
+      return;
+    }
+    const amountCents = Math.round(n * 100);
+    setCreatingPlan(true);
+    try {
+      const r = await apiJsonAuth<{ plan: FeePlan } | ApiErr>(`/groups/${groupId}/fee-plans`, {
+        method: "POST",
+        body: JSON.stringify({ name, amountCents }),
+      });
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível criar o plano.");
+        return;
+      }
+      toast.success("Plano criado.");
+      setPlanName("");
+      setPlanAmount("");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setCreatingPlan(false);
+    }
+  }
+
+  async function removeFeePlan(planId: string) {
+    setDeletingPlanId(planId);
+    try {
+      const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
+        `/groups/${groupId}/fee-plans/${planId}`,
+        { method: "DELETE" },
+      );
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(
+          r.data as ApiErr,
+          "Não foi possível excluir (talvez algum membro use este plano).",
+        );
+        return;
+      }
+      toast.success("Plano removido.");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setDeletingPlanId(null);
+    }
+  }
 
   async function markPaid(userId: string) {
     setActingUserId(userId);
@@ -212,8 +316,72 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Mensalidades</h1>
       <p className="mt-1 text-sm text-slate-400">
-        Acompanhamento por mês calendário. Sem registro = em aberto; registrar = marcar como pago.
+        Crie planos (ex.: mensalista joga, diarista, só eventos) com valor em reais. Cada membro
+        recebe um plano em «Membros do grupo». Ao marcar pago, o caixa recebe a entrada
+        automaticamente.
       </p>
+
+      {data.viewer.canManageMonthlyFees && (
+        <div className="mt-8 rounded-2xl border border-white/10 bg-pitch-900/50 p-6">
+          <h2 className="font-display text-lg font-semibold text-white">Planos de mensalidade</h2>
+          {feePlans.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {feePlans.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/40 px-3 py-2 text-sm"
+                >
+                  <span className="text-slate-200">
+                    {p.name} · {formatBrlFromCents(p.amountCents)}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={deletingPlanId !== null}
+                    onClick={() => void removeFeePlan(p.id)}
+                    className="text-xs text-red-300 hover:underline disabled:opacity-50"
+                  >
+                    {deletingPlanId === p.id ? "…" : "Excluir"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form onSubmit={createFeePlan} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-400" htmlFor="npn">
+                Nome do plano
+              </label>
+              <input
+                id="npn"
+                value={planName}
+                onChange={(e) => setPlanName(e.target.value)}
+                placeholder="Ex.: Mensalista — joga + eventos"
+                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
+              />
+            </div>
+            <div className="w-full sm:w-32">
+              <label className="block text-xs font-medium text-slate-400" htmlFor="npa">
+                Valor (R$)
+              </label>
+              <input
+                id="npa"
+                inputMode="decimal"
+                value={planAmount}
+                onChange={(e) => setPlanAmount(e.target.value)}
+                placeholder="80"
+                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creatingPlan}
+              className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+            >
+              {creatingPlan ? "…" : "Adicionar"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -253,9 +421,18 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
               <p className="text-xs text-slate-400">
                 {ROLE_LABELS[row.role] ?? row.role} · {row.phone}
               </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Plano atual:{" "}
+                {row.feePlan
+                  ? `${row.feePlan.name} (${formatBrlFromCents(row.feePlan.amountCents)})`
+                  : "não definido — defina em Membros"}
+              </p>
               {row.paid && (
                 <p className="mt-1 text-xs text-slate-500">
                   Pago em {formatPaidAt(row.paidAt)}
+                  {row.paidWithPlan
+                    ? ` · ${row.paidWithPlan.name} (${formatBrlFromCents(row.paidWithPlan.amountCents)})`
+                    : ""}
                   {row.recordedByName ? ` · registrado por ${row.recordedByName}` : ""}
                 </p>
               )}
@@ -275,7 +452,12 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
                   {!row.paid ? (
                     <button
                       type="button"
-                      disabled={actingUserId !== null}
+                      disabled={actingUserId !== null || !row.feePlan}
+                      title={
+                        row.feePlan
+                          ? undefined
+                          : "Atribua um plano ao membro na página Membros do grupo."
+                      }
                       onClick={() => void markPaid(row.userId)}
                       className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
                     >
