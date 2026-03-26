@@ -316,6 +316,13 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         </Link>
         {" · "}
         <Link
+          href={`/grupos/${groupId}/ranking`}
+          className="font-medium text-turf-bright hover:underline"
+        >
+          Classificação
+        </Link>
+        {" · "}
+        <Link
           href={`/grupos/${groupId}/caixa`}
           className="font-medium text-turf-bright hover:underline"
         >

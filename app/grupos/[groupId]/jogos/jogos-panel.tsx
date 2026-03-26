@@ -13,6 +13,8 @@ type GameRow = {
   location: string | null;
   startsAt: string;
   outcome: string | null;
+  teamAScore: number | null;
+  teamBScore: number | null;
   createdAt: string;
   createdBy: { id: string; fullName: string } | null;
   counts: { GOING: number; MAYBE: number; NOT_GOING: number };
@@ -289,11 +291,17 @@ export function JogosPanel({ groupId }: { groupId: string }) {
                       <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-slate-400">
                         Realizado
                       </span>
-                      {g.outcome && (
+                      {g.teamAScore !== null && g.teamBScore !== null && (
                         <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
-                          {OUTCOME_BADGE[g.outcome] ?? g.outcome}
+                          {g.teamAScore} × {g.teamBScore}
                         </span>
                       )}
+                      {g.outcome &&
+                        (g.teamAScore === null || g.teamBScore === null) && (
+                          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
+                            {OUTCOME_BADGE[g.outcome] ?? g.outcome}
+                          </span>
+                        )}
                     </span>
                   )}
                 </div>
