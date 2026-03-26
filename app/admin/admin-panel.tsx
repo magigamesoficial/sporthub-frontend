@@ -110,7 +110,7 @@ export function AdminPanel() {
     const token =
       typeof window !== "undefined" ? localStorage.getItem(TOKEN_STORAGE_KEY) : null;
     if (!token) {
-      router.replace("/login");
+      router.replace("/admin/login");
       return;
     }
     const r = await apiJsonAuth<{ user: MeUser } | ApiErr>("/auth/me");

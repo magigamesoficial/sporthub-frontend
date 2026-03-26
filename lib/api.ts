@@ -39,14 +39,20 @@ export function getAuthHeaders(): Record<string, string> {
 function redirectIfSessionInvalid(status: number): void {
   if (typeof window === "undefined" || status !== 401) return;
   const p = window.location.pathname;
-  if (p.startsWith("/login") || p.startsWith("/cadastro")) return;
+  if (p.startsWith("/login") || p.startsWith("/cadastro") || p.startsWith("/admin/login")) {
+    return;
+  }
 
   const hadToken = Boolean(window.localStorage.getItem(TOKEN_STORAGE_KEY));
   window.localStorage.removeItem(TOKEN_STORAGE_KEY);
 
   if (!hadToken) return;
 
-  window.location.assign("/login?session=expired");
+  if (p.startsWith("/admin")) {
+    window.location.assign("/admin/login?session=expired");
+  } else {
+    window.location.assign("/login?session=expired");
+  }
 }
 
 /** `fetch` JSON com `Authorization: Bearer` por último (sobrescreve header homônimo do init). */
@@ -74,7 +80,9 @@ export async function apiJsonAuth<T>(
         d.reason != null && String(d.reason).length > 0
           ? `&reason=${encodeURIComponent(String(d.reason))}`
           : "";
-      window.location.assign(`/login?account=${kind}${reasonQ}`);
+      const base =
+        window.location.pathname.startsWith("/admin") ? "/admin/login" : "/login";
+      window.location.assign(`${base}?account=${kind}${reasonQ}`);
       return { ok: false, status: res.status, data };
     }
   }

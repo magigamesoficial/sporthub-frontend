@@ -2,38 +2,37 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { apiJson, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
 type LoginOk = {
   token: string;
-  user: { id: string; fullName: string };
+  user: { id: string; fullName: string; role?: string };
 };
 type LoginErr = { error?: string; code?: string; reason?: string | null };
 
-export function LoginForm() {
+function AdminLoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const session = searchParams.get("session");
     if (session === "expired") {
-      toast.error("Sessão expirada ou inválida. Entre novamente com seu celular e senha.");
-      return;
+      toast.error("Sessão expirada. Entre novamente com e-mail e senha.");
     }
     const account = searchParams.get("account");
     if (account === "banned" || account === "blocked") {
       const reason = searchParams.get("reason");
       const label =
         account === "banned"
-          ? "Esta conta foi banida e não pode acessar a plataforma."
-          : "Esta conta está suspensa e não pode acessar a plataforma.";
-      toast.error(reason ? `${label} Motivo informado: ${reason}` : label);
+          ? "Conta banida."
+          : "Conta suspensa.";
+      toast.error(reason ? `${label} Motivo: ${reason}` : label);
     }
   }, [searchParams]);
 
@@ -41,9 +40,9 @@ export function LoginForm() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const r = await apiJson<LoginOk | LoginErr>("/auth/login", {
+      const r = await apiJson<LoginOk | LoginErr>("/auth/admin-login", {
         method: "POST",
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       if (!r.ok) {
@@ -59,20 +58,18 @@ export function LoginForm() {
           toast.error(err.reason ? `${base} Motivo: ${err.reason}` : base);
           return;
         }
-        if (err.code === "ADMIN_EMAIL_LOGIN_REQUIRED") {
-          toast.error(
-            "Este tipo de conta não entra com celular nesta página. Use o procedimento definido pela direção.",
-          );
-          return;
-        }
         toastFromApi(err, "Não foi possível entrar.");
         return;
       }
 
       const ok = r.data as LoginOk;
+      if (ok.user.role !== "ADMIN") {
+        toast.error("Acesso não autorizado.");
+        return;
+      }
       localStorage.setItem(TOKEN_STORAGE_KEY, ok.token);
-      toast.success(`Bem-vindo, ${ok.user.fullName.split(" ")[0] ?? "de volta"}!`);
-      router.replace("/dashboard");
+      toast.success(`Bem-vindo, ${ok.user.fullName.split(" ")[0] ?? "administrador"}!`);
+      router.replace("/admin");
       router.refresh();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
@@ -96,63 +93,71 @@ export function LoginForm() {
         Sport<span className="text-turf-bright">Hub</span>
       </Link>
 
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-pitch-900/60 p-8">
-        <h1 className="font-display text-2xl font-bold text-white">Entrar</h1>
-        <p className="mt-1 text-sm text-slate-400">Use seu celular e senha.</p>
+      <div className="w-full max-w-md rounded-2xl border border-amber-500/20 bg-pitch-900/60 p-8">
+        <h1 className="font-display text-2xl font-bold text-white">Acesso administrativo</h1>
+        <p className="mt-1 text-sm text-slate-400">E-mail e senha da conta administradora.</p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300" htmlFor="phone">
-              Celular
+            <label className="block text-sm font-medium text-slate-300" htmlFor="admin-email">
+              E-mail
             </label>
             <input
-              id="phone"
-              name="phone"
+              id="admin-email"
+              name="email"
+              type="email"
               required
-              autoComplete="tel"
-              placeholder="47988169663"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-amber-500/30 focus:ring-2"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300" htmlFor="password">
+            <label className="block text-sm font-medium text-slate-300" htmlFor="admin-password">
               Senha
             </label>
             <input
-              id="password"
+              id="admin-password"
               name="password"
               type="password"
               required
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-amber-500/30 focus:ring-2"
             />
           </div>
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-turf py-3 font-semibold text-pitch-950 shadow-lg shadow-turf/20 transition hover:bg-turf-bright disabled:opacity-50"
+            className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-pitch-950 shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 disabled:opacity-50"
           >
             {submitting ? "Entrando…" : "Entrar"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          Novo por aqui?{" "}
-          <Link href="/cadastro" className="font-medium text-turf-bright hover:underline">
-            Criar conta
-          </Link>
-        </p>
         <Link
-          href="/"
-          className="mt-4 block text-center text-sm text-slate-500 hover:text-slate-300"
+          href="/login"
+          className="mt-6 block text-center text-sm text-slate-500 hover:text-slate-300"
         >
-          ← Voltar à página inicial
+          ← Entrada para atletas
         </Link>
       </div>
     </div>
+  );
+}
+
+export function AdminLoginForm() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-slate-400">
+          Carregando…
+        </div>
+      }
+    >
+      <AdminLoginFormInner />
+    </Suspense>
   );
 }
