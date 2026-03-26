@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AdminLayoutShell, type AdminTab } from "@/components/admin-layout-shell";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -18,6 +19,43 @@ const SPORTS: { value: string; label: string }[] = [
 
 function sportLabel(value: string): string {
   return SPORTS.find((s) => s.value === value)?.label ?? value;
+}
+
+function roleLabel(role: string): string {
+  if (role === "ADMIN") return "Administrador";
+  if (role === "ATHLETE") return "Atleta";
+  return role;
+}
+
+function accountStatusLabel(s: string): string {
+  if (s === "ACTIVE") return "Ativa";
+  if (s === "BLOCKED") return "Suspensa";
+  if (s === "BANNED") return "Banida";
+  return s;
+}
+
+function visibilityLabel(v: string): string {
+  if (v === "PUBLIC") return "Público";
+  if (v === "PRIVATE") return "Privado";
+  return v;
+}
+
+function legalSlugLabel(slug: string): string {
+  if (slug === "terms") return "Termos de uso";
+  if (slug === "privacy") return "Política de privacidade";
+  return slug;
+}
+
+function formatDateTimePt(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
 }
 
 type ApiErr = { error?: string; code?: string; details?: unknown };
@@ -66,12 +104,10 @@ type LegalDocRow = {
   createdAt: string;
 };
 
-type Tab = "users" | "groups" | "sports" | "legal";
-
 export function AdminPanel() {
   const router = useRouter();
   const [me, setMe] = useState<MeUser | null | undefined>(undefined);
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<AdminTab>("users");
 
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [groups, setGroups] = useState<AdminGroupRow[]>([]);
@@ -325,70 +361,29 @@ export function AdminPanel() {
     return null;
   }
 
-  const tabBtn = (active: boolean) =>
-    `rounded-lg px-3 py-2 text-sm font-medium transition ${
-      active ? "bg-turf text-pitch-950" : "border border-white/15 text-slate-300 hover:bg-white/5"
-    }`;
-
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-white">Administração</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Usuários, grupos, esportes/scouts e documentos legais da plataforma.
-          </p>
-        </div>
-        <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
-          ← Voltar ao início
-        </Link>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button type="button" className={tabBtn(tab === "users")} onClick={() => setTab("users")}>
-          Contas
-        </button>
-        <button
-          type="button"
-          className={tabBtn(tab === "groups")}
-          onClick={() => setTab("groups")}
-        >
-          Grupos
-        </button>
-        <button
-          type="button"
-          className={tabBtn(tab === "sports")}
-          onClick={() => setTab("sports")}
-        >
-          Esportes e scouts
-        </button>
-        <button type="button" className={tabBtn(tab === "legal")} onClick={() => setTab("legal")}>
-          Termos e privacidade
-        </button>
-      </div>
-
+    <AdminLayoutShell activeTab={tab} onTabChange={setTab}>
+      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
       {tab === "users" && (
-        <div className="mt-8 space-y-4">
+        <div className="space-y-4">
           <p className="text-xs text-slate-500">
             Redefinir senha aplica temporariamente <strong className="text-slate-300">12345678</strong>{" "}
-            (avisar o usuário). Bloquear ou banir exige motivo; a conta deixa de autenticar.{" "}
-            <strong className="text-slate-300">Vigente na plataforma</strong> = mesmo critério para
-            todos os jogadores após login ou cadastro (rota pública{" "}
-            <code className="text-slate-400">/legal/active</code>).
+            (avisar a pessoa). Bloquear ou banir exige motivo; a conta deixa de conseguir entrar.
           </p>
           {loadUsers ? (
             <p className="text-slate-400">Carregando…</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[56rem] text-left text-sm">
+              <table className="w-full min-w-[62rem] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-xs text-slate-500">
                     <th className="p-3">Nome</th>
                     <th className="p-3">Celular</th>
                     <th className="p-3">E-mail</th>
                     <th className="p-3">Papel</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Motivo mod.</th>
+                    <th className="p-3">Situação da conta</th>
+                    <th className="p-3">Motivo da moderação</th>
+                    <th className="p-3">Cadastro</th>
                     <th className="p-3 w-56">Ações</th>
                   </tr>
                 </thead>
@@ -396,9 +391,9 @@ export function AdminPanel() {
                   {users.map((u) => (
                     <tr key={u.id} className="border-b border-white/5">
                       <td className="p-3 text-white">{u.fullName}</td>
-                      <td className="p-3 font-mono text-slate-300">{u.phone}</td>
+                      <td className="p-3 text-slate-300">{formatBrazilPhoneDisplay(u.phone)}</td>
                       <td className="p-3 text-slate-300">{u.email}</td>
-                      <td className="p-3 text-slate-400">{u.role}</td>
+                      <td className="p-3 text-slate-400">{roleLabel(u.role)}</td>
                       <td className="p-3">
                         <span
                           className={
@@ -409,11 +404,14 @@ export function AdminPanel() {
                                 : "text-amber-200"
                           }
                         >
-                          {u.accountStatus}
+                          {accountStatusLabel(u.accountStatus)}
                         </span>
                       </td>
                       <td className="max-w-[12rem] truncate p-3 text-xs text-slate-500">
                         {u.moderationReason ?? "—"}
+                      </td>
+                      <td className="p-3 text-xs text-slate-500">
+                        {formatDateTimePt(u.createdAt)}
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col gap-1">
@@ -521,19 +519,21 @@ export function AdminPanel() {
       )}
 
       {tab === "groups" && (
-        <div className="mt-8">
+        <div>
           {loadGroups ? (
             <p className="text-slate-400">Carregando…</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[44rem] text-left text-sm">
+              <table className="w-full min-w-[52rem] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-xs text-slate-500">
-                    <th className="p-3">Grupo</th>
-                    <th className="p-3">Código</th>
+                    <th className="p-3">Nome do grupo</th>
+                    <th className="p-3">Código público</th>
+                    <th className="p-3">Visibilidade</th>
                     <th className="p-3">Esporte</th>
                     <th className="p-3">Membros</th>
                     <th className="p-3">Presidente</th>
+                    <th className="p-3">Criado em</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -541,12 +541,16 @@ export function AdminPanel() {
                     <tr key={g.id} className="border-b border-white/5">
                       <td className="p-3 text-white">{g.name}</td>
                       <td className="p-3 font-mono text-slate-300">{g.publicCode}</td>
+                      <td className="p-3 text-slate-400">{visibilityLabel(g.visibility)}</td>
                       <td className="p-3 text-slate-400">{sportLabel(g.sport)}</td>
                       <td className="p-3 text-slate-400">{g._count.members}</td>
                       <td className="p-3 text-slate-300">
                         {g.president.fullName}
-                        <span className="block text-xs text-slate-500">{g.president.phone}</span>
+                        <span className="block text-xs text-slate-500">
+                          {formatBrazilPhoneDisplay(g.president.phone)}
+                        </span>
                       </td>
+                      <td className="p-3 text-xs text-slate-500">{formatDateTimePt(g.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -557,7 +561,7 @@ export function AdminPanel() {
       )}
 
       {tab === "sports" && (
-        <div className="mt-8 space-y-8">
+        <div className="space-y-8">
           <p className="text-xs text-slate-500">
             Métricas extras por esporte; grupos escolhem quais usar em «Scouts». Desativar remove a
             métrica da seleção dos grupos; dados em jogos antigos permanecem, sem edição.
@@ -567,10 +571,7 @@ export function AdminPanel() {
           ) : (
             SPORTS.map((s) => (
               <div key={s.value} className="rounded-xl border border-white/10 bg-pitch-900/40 p-4">
-                <h3 className="font-display text-base font-semibold text-white">
-                  {s.label}{" "}
-                  <span className="text-xs font-normal text-slate-500">({s.value})</span>
-                </h3>
+                <h3 className="font-display text-base font-semibold text-white">{s.label}</h3>
                 <ul className="mt-2 space-y-1 text-sm">
                   {(metricsBySport.get(s.value) ?? []).map((m) => (
                     <li
@@ -630,8 +631,10 @@ export function AdminPanel() {
                 <label className="block text-xs text-slate-400">Chave (ex.: gols)</label>
                 <input
                   value={newScoutKey}
-                  onChange={(e) => setNewScoutKey(e.target.value)}
-                  className="mt-1 w-40 rounded-lg border border-white/15 bg-pitch-950 px-2 py-2 text-sm text-white"
+                  onChange={(e) =>
+                    setNewScoutKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
+                  }
+                  className="mt-1 w-40 rounded-lg border border-white/15 bg-pitch-950 px-2 py-2 font-mono text-sm text-white"
                   placeholder="gols"
                 />
               </div>
@@ -648,9 +651,10 @@ export function AdminPanel() {
                 <label className="block text-xs text-slate-400">Ordem</label>
                 <input
                   value={newScoutOrder}
-                  onChange={(e) => setNewScoutOrder(e.target.value)}
-                  type="number"
+                  onChange={(e) => setNewScoutOrder(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
                   className="mt-1 w-20 rounded-lg border border-white/15 bg-pitch-950 px-2 py-2 text-sm text-white"
+                  placeholder="0"
                 />
               </div>
               <button
@@ -666,11 +670,10 @@ export function AdminPanel() {
       )}
 
       {tab === "legal" && (
-        <div className="mt-8 space-y-6">
+        <div className="space-y-6">
           <p className="text-xs text-slate-500">
-            Ao marcar <strong className="text-slate-300">tornar vigente</strong>, a nova versão
-            substitui a anterior no cadastro e em qualquer tela que leia{" "}
-            <code className="text-slate-400">/legal/active</code>.
+            Ao marcar <strong className="text-slate-300">tornar vigente</strong>, a nova versão passa
+            a valer no cadastro de novos usuários e nas telas públicas de termos e privacidade.
           </p>
           {loadLegal ? (
             <p className="text-slate-400">Carregando…</p>
@@ -679,19 +682,29 @@ export function AdminPanel() {
               <table className="w-full min-w-[40rem] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-xs text-slate-500">
-                    <th className="p-3">Tipo</th>
+                    <th className="p-3">Documento</th>
                     <th className="p-3">Versão</th>
                     <th className="p-3">Título</th>
-                    <th className="p-3">Vigente</th>
+                    <th className="p-3">Em vigor</th>
+                    <th className="p-3">Registrado em</th>
                   </tr>
                 </thead>
                 <tbody>
                   {legalDocs.map((d) => (
                     <tr key={d.id} className="border-b border-white/5">
-                      <td className="p-3 text-slate-300">{d.slug}</td>
+                      <td className="p-3 text-slate-300">{legalSlugLabel(d.slug)}</td>
                       <td className="p-3 font-mono text-slate-400">{d.version}</td>
                       <td className="p-3 text-white">{d.title}</td>
-                      <td className="p-3">{d.isActive ? "Sim" : "—"}</td>
+                      <td className="p-3">
+                        {d.isActive ? (
+                          <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-600/25">
+                            Vigente
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-xs text-slate-500">{formatDateTimePt(d.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -749,6 +762,7 @@ export function AdminPanel() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AdminLayoutShell>
   );
 }
