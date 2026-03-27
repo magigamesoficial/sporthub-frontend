@@ -127,34 +127,58 @@ export function ScoutsSettingsPanel({
     }
   }
 
+  const embeddedShell =
+    "rounded-2xl border border-turf/35 bg-gradient-to-br from-turf/[0.08] via-pitch-900/60 to-pitch-950/85 p-6 shadow-sm shadow-black/20";
+
   if (!data) {
     return (
-      <div className={variant === "embedded" ? "py-2" : "mx-auto max-w-2xl px-4 py-10"}>
+      <div
+        className={
+          variant === "embedded"
+            ? embeddedShell
+            : "mx-auto max-w-2xl px-4 py-10"
+        }
+      >
         {variant === "page" ? (
           <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
             ← Grupo
           </Link>
         ) : null}
-        <p className={variant === "embedded" ? "text-sm text-slate-500" : "mt-6 text-slate-500"}>
+        <p
+          className={
+            variant === "embedded" ? "text-sm text-slate-500" : "mt-6 text-slate-500"
+          }
+        >
           Carregando…
         </p>
       </div>
     );
   }
 
-  const wrapClass = variant === "embedded" ? "py-2" : "mx-auto max-w-2xl px-4 py-10";
+  const wrapClass =
+    variant === "embedded" ? embeddedShell : "mx-auto max-w-2xl px-4 py-10";
 
   return (
-    <div id="config-scouts" className={wrapClass}>
+    <section id="config-scouts" className={wrapClass} aria-labelledby="scouts-settings-heading">
       {variant === "page" ? (
         <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
           ← Membros do grupo
         </Link>
       ) : null}
       {variant === "embedded" ? (
-        <h2 className="mt-2 font-display text-xl font-bold text-white">Scouts do grupo</h2>
+        <h2
+          id="scouts-settings-heading"
+          className="font-display text-lg font-semibold text-white"
+        >
+          Scouts do grupo
+        </h2>
       ) : (
-        <h1 className="mt-4 font-display text-2xl font-bold text-white">Scouts do grupo</h1>
+        <h1
+          id="scouts-settings-heading"
+          className="mt-4 font-display text-2xl font-bold text-white"
+        >
+          Scouts do grupo
+        </h1>
       )}
       <p className="mt-2 text-sm text-slate-400">
         Estatísticas de ranking (jogos, vitórias, empates, derrotas, pontos e aproveitamento) vêm
@@ -162,7 +186,7 @@ export function ScoutsSettingsPanel({
         escolhe métricas extras cadastradas pelo administrador da plataforma para este esporte.
       </p>
 
-      <div className="mt-8 rounded-2xl border border-white/10 bg-pitch-950/50 p-6">
+      <div className="mt-6 rounded-2xl border border-white/10 bg-pitch-950/50 p-6">
         <h2 className="font-display text-lg font-semibold text-white">Sempre no ranking</h2>
         <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-400">
           {data.coreStats.map((c) => (
@@ -171,7 +195,7 @@ export function ScoutsSettingsPanel({
         </ul>
       </div>
 
-      <div className="mt-8 rounded-2xl border border-turf/25 bg-turf/5 p-6">
+      <div className="mt-6 rounded-2xl border border-turf/30 bg-turf/[0.07] p-6">
         <h2 className="font-display text-lg font-semibold text-white">Métricas opcionais</h2>
         {sortedOptional.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">
@@ -216,6 +240,6 @@ export function ScoutsSettingsPanel({
           </p>
         )}
       </div>
-    </div>
+    </section>
   );
 }

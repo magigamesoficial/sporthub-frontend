@@ -15,13 +15,9 @@ const STATUS_LABEL: Record<string, string> = {
   NOT_GOING: "Não vou",
 };
 
-const OUTCOME_LABEL: Record<string, string> = {
-  WIN: "Vitória",
-  DRAW: "Empate",
-  LOSS: "Derrota",
-};
-
 type AttendanceStatus = "GOING" | "MAYBE" | "NOT_GOING";
+
+type TeamSide = "TEAM_A" | "TEAM_B";
 
 type GameDetailResponse = {
   game: {
@@ -222,7 +218,6 @@ export function GameDetailPanel({
   async function patchGame(
     body:
       | { mode: "scores"; teamAScore: number; teamBScore: number }
-      | { mode: "legacy"; outcome: "WIN" | "DRAW" | "LOSS" }
       | { mode: "clear" },
   ) {
     setPatchSaving(true);
@@ -267,15 +262,24 @@ export function GameDetailPanel({
     if (!data) return;
     setTeamSaving(true);
     try {
+      const goingIds = new Set(
+        data.members
+          .filter((m) => m.attendance?.status === "GOING")
+          .map((m) => m.userId),
+      );
       const assignments = data.members
         .filter((m) => m.attendance)
-        .map((m) => ({
-          userId: m.userId,
-          teamSide:
-            teamDraft[m.userId] === "TEAM_A" || teamDraft[m.userId] === "TEAM_B"
-              ? teamDraft[m.userId]
-              : null,
-        }));
+        .map((m) => {
+          const inGoing = goingIds.has(m.userId);
+          const d = teamDraft[m.userId];
+          const raw =
+            d === "TEAM_A" || d === "TEAM_B" || d === ""
+              ? d
+              : (m.attendance?.teamSide ?? "");
+          const side =
+            inGoing && (raw === "TEAM_A" || raw === "TEAM_B") ? raw : null;
+          return { userId: m.userId, teamSide: side };
+        });
       const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
         `/groups/${groupId}/games/${gameId}/team-assignments`,
         { method: "PUT", body: JSON.stringify({ assignments }) },
@@ -408,14 +412,70 @@ export function GameDetailPanel({
 
   const goingMembers = members.filter((m) => m.attendance?.status === "GOING");
   const useTeamDraftForSides = viewer.canAssignTeams;
-  const sideForMember = (m: (typeof members)[number]): "TEAM_A" | "TEAM_B" | null => {
+  const sideForMember = (m: (typeof members)[number]): TeamSide | null => {
     if (useTeamDraftForSides) {
-      const d = teamDraft[m.userId] ?? "";
-      return d === "TEAM_A" || d === "TEAM_B" ? d : null;
+      const d = teamDraft[m.userId];
+      if (d === "TEAM_A" || d === "TEAM_B") return d;
+      if (d === "") return null;
+      const s = m.attendance?.teamSide;
+      return s === "TEAM_A" || s === "TEAM_B" ? s : null;
     }
     const s = m.attendance?.teamSide;
     return s === "TEAM_A" || s === "TEAM_B" ? s : null;
   };
+
+  function setMemberTeamSide(userId: string, side: TeamSide | null) {
+    setTeamDraft((p) => ({
+      ...p,
+      [userId]: side === null ? "" : side,
+    }));
+  }
+
+  function teamSideButtons(m: (typeof members)[number]) {
+    const side = sideForMember(m);
+    const baseBtn =
+      "min-h-[2rem] min-w-[2rem] rounded-lg px-2.5 py-1 text-xs font-bold transition disabled:opacity-40";
+    const activeA =
+      side === "TEAM_A"
+        ? "bg-emerald-500/35 text-emerald-100 ring-1 ring-emerald-400/60"
+        : "border border-white/15 bg-pitch-950/80 text-slate-300 hover:bg-white/10";
+    const activeB =
+      side === "TEAM_B"
+        ? "bg-sky-500/35 text-sky-100 ring-1 ring-sky-400/60"
+        : "border border-white/15 bg-pitch-950/80 text-slate-300 hover:bg-white/10";
+    const activeNone =
+      side === null
+        ? "border border-amber-500/40 bg-amber-500/15 text-amber-100"
+        : "border border-white/15 bg-pitch-950/80 text-slate-400 hover:bg-white/10";
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          title="Time A"
+          onClick={() => setMemberTeamSide(m.userId, "TEAM_A")}
+          className={`${baseBtn} ${activeA}`}
+        >
+          A
+        </button>
+        <button
+          type="button"
+          title="Time B"
+          onClick={() => setMemberTeamSide(m.userId, "TEAM_B")}
+          className={`${baseBtn} ${activeB}`}
+        >
+          B
+        </button>
+        <button
+          type="button"
+          title="Sem time"
+          onClick={() => setMemberTeamSide(m.userId, null)}
+          className={`${baseBtn} px-2 ${activeNone}`}
+        >
+          —
+        </button>
+      </div>
+    );
+  }
   const teamAMembers = goingMembers.filter((m) => sideForMember(m) === "TEAM_A");
   const teamBMembers = goingMembers.filter((m) => sideForMember(m) === "TEAM_B");
   const unassignedMembers = goingMembers.filter((m) => sideForMember(m) === null);
@@ -454,11 +514,19 @@ export function GameDetailPanel({
       {hasPlacar && (
         <p className="mt-2 text-base font-semibold text-white">
           Placar: Time A {game.teamAScore} × {game.teamBScore} Time B
-        </p>
-      )}
-      {!hasPlacar && game.outcome && (
-        <p className="mt-2 text-sm font-medium text-emerald-200/90">
-          Resultado (modo simples): {OUTCOME_LABEL[game.outcome] ?? game.outcome}
+          {game.teamAScore !== null &&
+          game.teamBScore !== null &&
+          game.teamAScore === game.teamBScore ? (
+            <span className="ml-2 text-sm font-normal text-slate-400">(empate)</span>
+          ) : game.teamAScore !== null && game.teamBScore !== null ? (
+            <span className="ml-2 text-sm font-normal text-slate-400">
+              (
+              {game.teamAScore > game.teamBScore
+                ? "vitória do Time A"
+                : "vitória do Time B"}
+              )
+            </span>
+          ) : null}
         </p>
       )}
       {game.location && <p className="mt-2 text-sm text-slate-400">{game.location}</p>}
@@ -503,15 +571,15 @@ export function GameDetailPanel({
       <div className="mt-8 rounded-2xl border border-turf/25 bg-turf/5 p-6">
           <h2 className="font-display text-lg font-semibold text-white">Times</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Quem marcou &quot;Vou&quot; entra na divisão. Com placar, vitória / empate / derrota no
-            ranking seguem o lado de cada um. Após definir os times, eles aparecem nas colunas; quem
-            faltar aparece em &quot;Ainda sem time&quot;.
+            Quem marcou &quot;Vou&quot; entra na divisão. Use os botões <strong className="text-slate-300">A</strong>,{" "}
+            <strong className="text-slate-300">B</strong> ou <strong className="text-slate-300">—</strong> ao lado do
+            nome e clique em <strong className="text-slate-300">Salvar times</strong>. No ranking, com placar, vence quem
+            estiver no time com mais gols; gols iguais contam como empate.
           </p>
           <p className="mt-2 text-xs text-amber-200/90">
             Apenas <strong>presidente</strong>, <strong>vice-presidente</strong> e{" "}
             <strong>moderadores</strong> podem alterar times. O sorteio automático só aparece até o
-            resultado do jogo ser informado (placar ou vitória/empate/derrota); depois disso dá para
-            ajustar times só manualmente.
+            placar ser lançado; depois, use os botões (ou só ajuste quem já tem time).
           </p>
           {viewer.canAssignTeams && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -534,7 +602,7 @@ export function GameDetailPanel({
               </button>
               {viewer.canAssignTeams && matchResultRecorded && (
                 <span className="text-xs text-slate-500">
-                  Sorteio desativado: resultado já registrado — use os menus ao lado de cada atleta.
+                  Sorteio desativado: placar já registrado — use A / B / — ao lado de cada atleta.
                 </span>
               )}
             </div>
@@ -550,22 +618,12 @@ export function GameDetailPanel({
                   {teamAMembers.map((m) => (
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="text-sm text-white">{m.fullName}</span>
-                          <select
-                            value={teamDraft[m.userId] ?? ""}
-                            onChange={(e) =>
-                              setTeamDraft((p) => ({ ...p, [m.userId]: e.target.value }))
-                            }
-                            className="max-w-[9rem] rounded-lg border border-white/15 bg-pitch-950 px-2 py-1 text-xs text-white"
-                          >
-                            <option value="TEAM_A">Time A</option>
-                            <option value="TEAM_B">Time B</option>
-                            <option value="">Sem time</option>
-                          </select>
+                        <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
+                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          {teamSideButtons(m)}
                         </div>
                       ) : (
-                        <span className="block rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-1.5 text-sm text-slate-200">
+                        <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
                           {m.fullName}
                         </span>
                       )}
@@ -579,22 +637,12 @@ export function GameDetailPanel({
                   {teamBMembers.map((m) => (
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="text-sm text-white">{m.fullName}</span>
-                          <select
-                            value={teamDraft[m.userId] ?? ""}
-                            onChange={(e) =>
-                              setTeamDraft((p) => ({ ...p, [m.userId]: e.target.value }))
-                            }
-                            className="max-w-[9rem] rounded-lg border border-white/15 bg-pitch-950 px-2 py-1 text-xs text-white"
-                          >
-                            <option value="TEAM_A">Time A</option>
-                            <option value="TEAM_B">Time B</option>
-                            <option value="">Sem time</option>
-                          </select>
+                        <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
+                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          {teamSideButtons(m)}
                         </div>
                       ) : (
-                        <span className="block rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-1.5 text-sm text-slate-200">
+                        <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
                           {m.fullName}
                         </span>
                       )}
@@ -610,22 +658,12 @@ export function GameDetailPanel({
                   {unassignedMembers.map((m) => (
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="text-sm text-white">{m.fullName}</span>
-                          <select
-                            value={teamDraft[m.userId] ?? ""}
-                            onChange={(e) =>
-                              setTeamDraft((p) => ({ ...p, [m.userId]: e.target.value }))
-                            }
-                            className="max-w-[9rem] rounded-lg border border-white/15 bg-pitch-950 px-2 py-1 text-xs text-white"
-                          >
-                            <option value="">Sem time</option>
-                            <option value="TEAM_A">Time A</option>
-                            <option value="TEAM_B">Time B</option>
-                          </select>
+                        <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
+                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          {teamSideButtons(m)}
                         </div>
                       ) : (
-                        <span className="block rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-1.5 text-sm text-slate-200">
+                        <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
                           {m.fullName}
                         </span>
                       )}
@@ -680,39 +718,16 @@ export function GameDetailPanel({
               >
                 Salvar placar
               </button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-pitch-950/40 p-6">
-            <h2 className="font-display text-lg font-semibold text-white">Resultado simples</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Sem placar: todo mundo que foi como &quot;Vou&quot; recebe o mesmo V/E/D (útil se o
-              jogo foi contra time de fora).
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(["WIN", "DRAW", "LOSS"] as const).map((o) => (
+              {(hasPlacar || game.outcome) && (
                 <button
-                  key={o}
                   type="button"
                   disabled={patchSaving}
-                  onClick={() => void patchGame({ mode: "legacy", outcome: o })}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
-                    !hasPlacar && game.outcome === o
-                      ? "bg-turf text-pitch-950"
-                      : "border border-white/20 text-slate-200 hover:bg-white/5"
-                  }`}
+                  onClick={() => void patchGame({ mode: "clear" })}
+                  className="rounded-xl border border-white/20 px-4 py-2 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
                 >
-                  {OUTCOME_LABEL[o]}
+                  Limpar placar
                 </button>
-              ))}
-              <button
-                type="button"
-                disabled={patchSaving}
-                onClick={() => void patchGame({ mode: "clear" })}
-                className="rounded-xl border border-white/15 px-4 py-2 text-sm text-slate-400 hover:bg-white/5 disabled:opacity-50"
-              >
-                Limpar resultado
-              </button>
+              )}
             </div>
           </div>
         </div>
