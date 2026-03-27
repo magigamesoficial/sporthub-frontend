@@ -58,6 +58,20 @@ function formatDateTimePt(iso: string | null): string {
   }
 }
 
+function birthDateToInput(iso: string): string {
+  return iso.slice(0, 10);
+}
+
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(local: string): string {
+  return new Date(local).toISOString();
+}
+
 type ApiErr = { error?: string; code?: string; details?: unknown };
 
 type MeUser = { id: string; role: string; fullName: string };
@@ -67,11 +81,33 @@ type AdminUserRow = {
   email: string;
   phone: string;
   fullName: string;
+  birthDate: string;
   role: string;
   accountStatus: string;
   moderationReason: string | null;
   moderatedAt: string | null;
+  termsVersion: number;
+  privacyVersion: number;
+  termsAcceptedAt: string;
+  privacyAcceptedAt: string;
   createdAt: string;
+  updatedAt: string;
+};
+
+type EditUserFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  birthDate: string;
+  role: string;
+  accountStatus: string;
+  moderationReason: string;
+  moderatedAtLocal: string;
+  termsVersion: string;
+  privacyVersion: string;
+  termsAcceptedAtLocal: string;
+  privacyAcceptedAtLocal: string;
+  newPassword: string;
 };
 
 type AdminGroupRow = {
@@ -122,6 +158,10 @@ export function AdminPanel() {
   const [moderateUserId, setModerateUserId] = useState<string | null>(null);
   const [moderateKind, setModerateKind] = useState<"BLOCKED" | "BANNED" | null>(null);
   const [moderateReason, setModerateReason] = useState("");
+
+  const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
+  const [editForm, setEditForm] = useState<EditUserFormState | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const [scoutSport, setScoutSport] = useState("FOOTBALL");
   const [newScoutKey, setNewScoutKey] = useState("");
@@ -285,6 +325,92 @@ export function AdminPanel() {
     toast.success(msg ?? "Senha redefinida.");
   }
 
+  function openEditUser(u: AdminUserRow) {
+    setEditUser(u);
+    setEditForm({
+      fullName: u.fullName,
+      email: u.email,
+      phone: u.phone,
+      birthDate: birthDateToInput(u.birthDate),
+      role: u.role,
+      accountStatus: u.accountStatus,
+      moderationReason: u.moderationReason ?? "",
+      moderatedAtLocal: u.moderatedAt ? toDatetimeLocalValue(u.moderatedAt) : "",
+      termsVersion: String(u.termsVersion),
+      privacyVersion: String(u.privacyVersion),
+      termsAcceptedAtLocal: toDatetimeLocalValue(u.termsAcceptedAt),
+      privacyAcceptedAtLocal: toDatetimeLocalValue(u.privacyAcceptedAt),
+      newPassword: "",
+    });
+  }
+
+  function closeEditUser() {
+    setEditUser(null);
+    setEditForm(null);
+  }
+
+  async function submitEditUser() {
+    if (!editUser || !editForm) return;
+    const tv = Number.parseInt(editForm.termsVersion, 10);
+    const pv = Number.parseInt(editForm.privacyVersion, 10);
+    if (!Number.isFinite(tv) || tv < 1 || !Number.isFinite(pv) || pv < 1) {
+      toast.error("Versões de termos e de privacidade devem ser inteiros ≥ 1.");
+      return;
+    }
+    if (
+      editForm.accountStatus !== "ACTIVE" &&
+      editForm.moderationReason.trim().length < 3
+    ) {
+      toast.error("Para conta suspensa ou banida, informe o motivo (mín. 3 caracteres).");
+      return;
+    }
+    const np = editForm.newPassword.trim();
+    if (np.length > 0 && np.length < 8) {
+      toast.error("Nova senha: mínimo 8 caracteres ou deixe em branco.");
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      fullName: editForm.fullName.trim(),
+      email: editForm.email.trim(),
+      phone: editForm.phone.trim(),
+      birthDate: editForm.birthDate,
+      role: editForm.role,
+      accountStatus: editForm.accountStatus,
+      moderationReason:
+        editForm.accountStatus === "ACTIVE" ? null : editForm.moderationReason.trim(),
+      termsVersion: tv,
+      privacyVersion: pv,
+      termsAcceptedAt: fromDatetimeLocal(editForm.termsAcceptedAtLocal),
+      privacyAcceptedAt: fromDatetimeLocal(editForm.privacyAcceptedAtLocal),
+    };
+    if (editForm.accountStatus === "ACTIVE") {
+      body.moderatedAt = null;
+    } else if (editForm.moderatedAtLocal.trim()) {
+      body.moderatedAt = fromDatetimeLocal(editForm.moderatedAtLocal);
+    }
+    if (np.length > 0) {
+      body.newPassword = np;
+    }
+
+    setEditSaving(true);
+    try {
+      const r = await apiJsonAuth<{ user: AdminUserRow } | ApiErr>(
+        `/admin/users/${editUser.id}`,
+        { method: "PATCH", body: JSON.stringify(body) },
+      );
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível salvar a conta.");
+        return;
+      }
+      toast.success("Conta atualizada.");
+      closeEditUser();
+      await fetchUsers();
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   async function createScoutMetric() {
     const sortOrder = Number.parseInt(newScoutOrder, 10);
     const order = Number.isFinite(sortOrder) ? sortOrder : 0;
@@ -384,7 +510,7 @@ export function AdminPanel() {
                     <th className="p-3">Situação da conta</th>
                     <th className="p-3">Motivo da moderação</th>
                     <th className="p-3">Cadastro</th>
-                    <th className="p-3 w-56">Ações</th>
+                    <th className="p-3 w-64">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -415,6 +541,13 @@ export function AdminPanel() {
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditUser(u)}
+                            className="text-left text-xs font-medium text-sky-300 hover:underline"
+                          >
+                            Alterar conta…
+                          </button>
                           {u.id !== me.id && u.accountStatus === "ACTIVE" && (
                             <>
                               <button
@@ -468,6 +601,220 @@ export function AdminPanel() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {editUser && editForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-pitch-950 p-6 shadow-xl">
+            <h3 className="font-display text-lg font-semibold text-white">Alterar conta</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {editUser.fullName} · ID interno <span className="font-mono">{editUser.id}</span>
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Cadastro {formatDateTimePt(editUser.createdAt)} · Atualizado{" "}
+              {formatDateTimePt(editUser.updatedAt)}
+            </p>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-name">
+                  Nome completo
+                </label>
+                <input
+                  id="adm-edit-name"
+                  value={editForm.fullName}
+                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-email">
+                  E-mail
+                </label>
+                <input
+                  id="adm-edit-email"
+                  type="email"
+                  autoComplete="off"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-phone">
+                  Celular (Brasil, com DDD — pode colar formatado)
+                </label>
+                <input
+                  id="adm-edit-phone"
+                  autoComplete="off"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-birth">
+                  Nascimento
+                </label>
+                <input
+                  id="adm-edit-birth"
+                  type="date"
+                  value={editForm.birthDate}
+                  onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-role">
+                  Papel
+                </label>
+                <select
+                  id="adm-edit-role"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="ATHLETE">Atleta</option>
+                  <option value="ADMIN">Administrador</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-status">
+                  Situação da conta
+                </label>
+                <select
+                  id="adm-edit-status"
+                  value={editForm.accountStatus}
+                  onChange={(e) => setEditForm({ ...editForm, accountStatus: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="ACTIVE">Ativa</option>
+                  <option value="BLOCKED">Suspensa</option>
+                  <option value="BANNED">Banida</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label
+                  className="block text-xs font-medium text-slate-400"
+                  htmlFor="adm-edit-mod-reason"
+                >
+                  Motivo da moderação (obrigatório se suspensa ou banida)
+                </label>
+                <textarea
+                  id="adm-edit-mod-reason"
+                  rows={3}
+                  value={editForm.moderationReason}
+                  onChange={(e) => setEditForm({ ...editForm, moderationReason: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              {editForm.accountStatus !== "ACTIVE" && (
+                <div className="sm:col-span-2">
+                  <label
+                    className="block text-xs font-medium text-slate-400"
+                    htmlFor="adm-edit-mod-at"
+                  >
+                    Data/hora da moderação (opcional: vazio = agora)
+                  </label>
+                  <input
+                    id="adm-edit-mod-at"
+                    type="datetime-local"
+                    value={editForm.moderatedAtLocal}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, moderatedAtLocal: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-tv">
+                  Versão dos termos aceita
+                </label>
+                <input
+                  id="adm-edit-tv"
+                  inputMode="numeric"
+                  value={editForm.termsVersion}
+                  onChange={(e) => setEditForm({ ...editForm, termsVersion: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-pv">
+                  Versão da privacidade aceita
+                </label>
+                <input
+                  id="adm-edit-pv"
+                  inputMode="numeric"
+                  value={editForm.privacyVersion}
+                  onChange={(e) => setEditForm({ ...editForm, privacyVersion: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-ta">
+                  Aceite dos termos (data/hora)
+                </label>
+                <input
+                  id="adm-edit-ta"
+                  type="datetime-local"
+                  value={editForm.termsAcceptedAtLocal}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, termsAcceptedAtLocal: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-pa">
+                  Aceite da privacidade (data/hora)
+                </label>
+                <input
+                  id="adm-edit-pa"
+                  type="datetime-local"
+                  value={editForm.privacyAcceptedAtLocal}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, privacyAcceptedAtLocal: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400" htmlFor="adm-edit-pw">
+                  Nova senha (opcional, mín. 8 caracteres)
+                </label>
+                <input
+                  id="adm-edit-pw"
+                  type="password"
+                  autoComplete="new-password"
+                  value={editForm.newPassword}
+                  onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
+                  placeholder="Deixe em branco para não alterar"
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                disabled={editSaving}
+                onClick={() => void submitEditUser()}
+                className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+              >
+                {editSaving ? "Salvando…" : "Salvar"}
+              </button>
+              <button
+                type="button"
+                disabled={editSaving}
+                onClick={closeEditUser}
+                className="rounded-xl border border-white/20 px-4 py-2 text-sm text-slate-300"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
