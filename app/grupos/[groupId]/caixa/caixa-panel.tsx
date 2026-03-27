@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
+import { GroupSectionNav } from "../group-section-nav";
 
 type LedgerKind = "INCOME" | "EXPENSE";
 
@@ -242,6 +243,7 @@ export function CaixaPanel({ groupId }: { groupId: string }) {
       <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>
+      <GroupSectionNav groupId={groupId} />
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Caixa do grupo</h1>
       <p className="mt-1 text-sm text-slate-400">

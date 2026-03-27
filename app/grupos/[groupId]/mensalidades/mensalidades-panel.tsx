@@ -8,6 +8,7 @@ import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { groupMemberRoleLabel } from "@/lib/athlete-labels";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
+import { GroupSectionNav } from "../group-section-nav";
 
 type FeePlan = { id: string; name: string; amountCents: number };
 
@@ -307,6 +308,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>
+      <GroupSectionNav groupId={groupId} />
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Mensalidades</h1>
       <p className="mt-1 text-sm text-slate-400">

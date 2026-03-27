@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Outfit } from "next/font/google";
+import { SiteFooter } from "@/components/site-footer";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -32,8 +33,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={`${dmSans.variable} ${outfit.variable}`}>
-      <body className="min-h-screen font-sans antialiased">
-        <Providers>{children}</Providers>
+      <body className="flex min-h-screen flex-col font-sans antialiased">
+        <Providers>
+          <div className="flex-1">{children}</div>
+          <SiteFooter />
+        </Providers>
       </body>
     </html>
   );

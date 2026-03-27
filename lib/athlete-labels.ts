@@ -29,6 +29,11 @@ export function groupMemberRoleLabel(role: string): string {
   return GROUP_MEMBER_ROLE_LABELS[role] ?? role;
 }
 
+/** Título curto do papel (ex.: cabeçalho «PRESIDENTE»). */
+export function groupMemberRoleHeading(role: string): string {
+  return groupMemberRoleLabel(role).toLocaleUpperCase("pt-BR");
+}
+
 export function groupVisibilityLabel(v: string): string {
   if (v === "PUBLIC") return "Público";
   if (v === "PRIVATE") return "Privado";

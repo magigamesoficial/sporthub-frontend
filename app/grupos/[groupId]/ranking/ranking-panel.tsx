@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
+import { GroupSectionNav } from "../group-section-nav";
 
 type MetricCol = { id: string; key: string; label: string };
 
@@ -145,6 +146,7 @@ export function RankingPanel({ groupId }: { groupId: string }) {
       <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>
+      <GroupSectionNav groupId={groupId} />
       <h1 className="mt-4 font-display text-2xl font-bold text-white">
         Classificação · {data.group.name}
       </h1>

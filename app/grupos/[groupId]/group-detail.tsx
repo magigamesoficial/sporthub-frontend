@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
-import { groupMemberRoleLabel } from "@/lib/athlete-labels";
+import { groupMemberRoleHeading, groupMemberRoleLabel } from "@/lib/athlete-labels";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
+import { GroupSectionNav } from "./group-section-nav";
+import { InviteMemberModal } from "./invite-member-modal";
 
 type FeePlan = { id: string; name: string; amountCents: number };
 
@@ -48,11 +50,10 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   const [data, setData] = useState<MembersResponse | null>(null);
   const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [blocked, setBlocked] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [inviting, setInviting] = useState(false);
   const [pendingJoin, setPendingJoin] = useState<JoinRequestRow[]>([]);
   const [joinActionId, setJoinActionId] = useState<string | null>(null);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const load = useCallback(async () => {
     const token =
@@ -128,47 +129,6 @@ export function GroupDetail({ groupId }: { groupId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function onInvite(e: React.FormEvent) {
-    e.preventDefault();
-    const phoneTrim = phone.trim();
-    const digits = phoneTrim.replace(/\D/g, "");
-    if (digits.length < 10) {
-      toast.error("Informe o celular com DDD (10 ou 11 dígitos), ex.: 11987654321.");
-      return;
-    }
-    setInviting(true);
-    try {
-      const r = await apiJsonAuth<{ member?: unknown } | ApiErr>(
-        `/groups/${groupId}/members/invite`,
-        {
-          method: "POST",
-          body: JSON.stringify({ phone: phoneTrim }),
-        },
-      );
-      if (r.status === 401) {
-        router.replace("/login");
-        return;
-      }
-      if (!r.ok) {
-        toastFromApi(r.data as ApiErr, "Não foi possível adicionar.");
-        return;
-      }
-      toast.success("Membro adicionado ao grupo.");
-      setPhone("");
-      await load();
-    } catch (e) {
-      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
-        toast.error(
-          "A URL da API não está configurada neste ambiente. Avise o administrador.",
-        );
-      } else {
-        toastNetworkError();
-      }
-    } finally {
-      setInviting(false);
-    }
-  }
 
   async function approveRequest(requestId: string) {
     setJoinActionId(requestId);
@@ -289,54 +249,37 @@ export function GroupDetail({ groupId }: { groupId: string }) {
         ← Lista de grupos
       </Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Membros do grupo</h1>
-      <p className="mt-1 text-sm text-slate-400">
-        Seu papel:{" "}
-        <span className="text-turf-bright">
-          {groupMemberRoleLabel(data.viewer.role)}
-        </span>
-        {" · "}
-        <Link
-          href={`/grupos/${groupId}/mensalidades`}
-          className="font-medium text-turf-bright hover:underline"
-        >
-          Mensalidades
-        </Link>
-        {" · "}
-        <Link
-          href={`/grupos/${groupId}/jogos`}
-          className="font-medium text-turf-bright hover:underline"
-        >
-          Jogos
-        </Link>
-        {" · "}
-        <Link
-          href={`/grupos/${groupId}/ranking`}
-          className="font-medium text-turf-bright hover:underline"
-        >
-          Classificação
-        </Link>
-        {" · "}
-        <Link
-          href={`/grupos/${groupId}/caixa`}
-          className="font-medium text-turf-bright hover:underline"
-        >
-          Caixa
-        </Link>
-        {" · "}
-        <Link
-          href={`/grupos/${groupId}/scouts`}
-          className="font-medium text-turf-bright hover:underline"
-        >
-          Scouts
-        </Link>
-        {" · "}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
           href={`/grupos/${groupId}/visao`}
-          className="font-medium text-turf-bright/80 hover:underline"
+          className="inline-flex items-center rounded-xl border border-white/15 bg-pitch-950/40 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/5"
         >
           Perfil público
         </Link>
+        {data.viewer.canInviteByPhone ? (
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="inline-flex items-center rounded-xl border border-turf/40 bg-turf/10 px-3 py-2 text-sm font-semibold text-turf-bright hover:bg-turf/20"
+          >
+            Adicionar jogador
+          </button>
+        ) : null}
+      </div>
+
+      <p className="mt-4 text-lg font-semibold tracking-wide text-turf-bright">
+        {groupMemberRoleHeading(data.viewer.role)}
       </p>
+
+      <GroupSectionNav groupId={groupId} />
+
+      <InviteMemberModal
+        groupId={groupId}
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        onInvited={() => load()}
+      />
 
       {data.viewer.canApproveJoinRequests && pendingJoin.length > 0 && (
         <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6">
@@ -377,37 +320,6 @@ export function GroupDetail({ groupId }: { groupId: string }) {
             ))}
           </ul>
         </div>
-      )}
-
-      {data.viewer.canInviteByPhone && (
-        <form
-          onSubmit={onInvite}
-          className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-pitch-900/60 p-6"
-        >
-          <h2 className="font-display text-lg font-semibold text-white">
-            Adicionar por telefone
-          </h2>
-          <p className="text-xs text-slate-500">
-            A pessoa precisa já ter conta no SportHub com esse celular (Brasil).
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="tel"
-              required
-              placeholder="11987654321"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="flex-1 rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
-            />
-            <button
-              type="submit"
-              disabled={inviting}
-              className="rounded-xl bg-turf px-4 py-2 font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
-            >
-              {inviting ? "Adicionando…" : "Adicionar"}
-            </button>
-          </div>
-        </form>
       )}
 
       <ul className="mt-8 space-y-2">

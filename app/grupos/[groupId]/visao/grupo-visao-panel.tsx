@@ -15,6 +15,7 @@ type PublicMember = {
   role: string;
   feePlanName: string | null;
   whatsappPhone: string | null;
+  feeStatus?: "em_dia" | "em_atraso" | "sem_plano";
 };
 
 type PublicProfileResponse = {
@@ -26,15 +27,33 @@ type PublicProfileResponse = {
     visibility: string;
     presidentId: string;
     createdAt: string;
+    richPublicProfile?: boolean;
+    statuteUrl?: string | null;
+    localRulesNote?: string | null;
   };
   viewerIsMember: boolean;
   viewerPendingJoinRequestId: string | null;
   canRequestJoin: boolean;
   members: PublicMember[];
   memberCount: number | null;
+  periodMonth?: string;
+  feePlans?: { id: string; name: string; amountCents: number }[];
 };
 
 type ApiErr = { error?: string; code?: string };
+
+function formatBrlFromCents(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function feeStatusBadge(status: NonNullable<PublicMember["feeStatus"]>): {
+  label: string;
+  className: string;
+} {
+  if (status === "em_dia") return { label: "Em dia", className: "text-emerald-300/95" };
+  if (status === "em_atraso") return { label: "Em atraso", className: "text-amber-200/95" };
+  return { label: "Sem plano", className: "text-slate-500" };
+}
 
 function WhatsAppLink({
   phone,
@@ -172,8 +191,19 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
     );
   }
 
-  const { group, viewerIsMember, viewerPendingJoinRequestId, canRequestJoin, members, memberCount } =
-    data;
+  const {
+    group,
+    viewerIsMember,
+    viewerPendingJoinRequestId,
+    canRequestJoin,
+    members,
+    memberCount,
+    periodMonth,
+    feePlans,
+  } = data;
+
+  /** API inclui `feePlans` somente quando o perfil detalhado está ativo e permitido para o visitante. */
+  const richOn = feePlans !== undefined;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -225,15 +255,58 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
         )}
       </div>
 
+      {richOn && group.statuteUrl ? (
+        <p className="mt-8 text-sm text-slate-300">
+          <span className="text-slate-500">Estatuto / regulamento:</span>{" "}
+          <a
+            href={group.statuteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-turf-bright underline decoration-turf/40 underline-offset-4 hover:text-turf"
+          >
+            abrir link
+          </a>
+        </p>
+      ) : null}
+
+      {richOn && group.localRulesNote ? (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-pitch-950/40 p-4">
+          <h2 className="text-sm font-semibold text-white">Regras e observações do grupo</h2>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-400">{group.localRulesNote}</p>
+        </div>
+      ) : null}
+
+      {richOn && feePlans && feePlans.length > 0 ? (
+        <div className="mt-8">
+          <h2 className="font-display text-lg font-semibold text-white">Tipos de mensalidade</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Valores cadastrados pelo grupo{periodMonth ? ` · situação referente a ${periodMonth}` : ""}.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {feePlans.map((p) => (
+              <li
+                key={p.id}
+                className="rounded-lg border border-white/10 bg-pitch-950/40 px-3 py-2 text-sm text-slate-200"
+              >
+                {p.name} · {formatBrlFromCents(p.amountCents)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <h2 className="mt-10 font-display text-lg font-semibold text-white">Membros visíveis</h2>
       <p className="mt-1 text-xs text-slate-500">
         {group.visibility === "PRIVATE" && !viewerIsMember
           ? "Somente o presidente é listado para grupos privados quando você não participa."
-          : "Lista completa neste perfil público."}
+          : richOn
+            ? "Perfil detalhado: situação da mensalidade no mês indicado, quando há plano vinculado."
+            : "Lista completa neste perfil público."}
       </p>
       <ul className="mt-4 space-y-2">
         {members.map((m) => {
           const showWa = Boolean(m.whatsappPhone);
+          const st = m.feeStatus ? feeStatusBadge(m.feeStatus) : null;
           return (
             <li
               key={m.userId}
@@ -249,6 +322,12 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
                       {m.feePlanName ?? "não vinculada a um plano"}
                     </span>
                   </p>
+                  {st ? (
+                    <p className={`mt-1 text-xs font-medium ${st.className}`}>
+                      {periodMonth ? `${periodMonth}: ` : ""}
+                      {st.label}
+                    </p>
+                  ) : null}
                 </div>
                 {showWa && m.whatsappPhone ? (
                   <WhatsAppLink phone={m.whatsappPhone} label={m.fullName} />

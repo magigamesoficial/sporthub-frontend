@@ -23,7 +23,14 @@ type ScoutSettingsResponse = {
 
 type ApiErr = { error?: string; code?: string };
 
-export function ScoutsSettingsPanel({ groupId }: { groupId: string }) {
+export function ScoutsSettingsPanel({
+  groupId,
+  variant = "page",
+}: {
+  groupId: string;
+  /** `embedded`: bloco dentro da página de configurações (sem links de voltar). */
+  variant?: "page" | "embedded";
+}) {
   const router = useRouter();
   const [data, setData] = useState<ScoutSettingsResponse | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -122,21 +129,33 @@ export function ScoutsSettingsPanel({ groupId }: { groupId: string }) {
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-          ← Grupo
-        </Link>
-        <p className="mt-6 text-slate-500">Carregando…</p>
+      <div className={variant === "embedded" ? "py-2" : "mx-auto max-w-2xl px-4 py-10"}>
+        {variant === "page" ? (
+          <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+            ← Grupo
+          </Link>
+        ) : null}
+        <p className={variant === "embedded" ? "text-sm text-slate-500" : "mt-6 text-slate-500"}>
+          Carregando…
+        </p>
       </div>
     );
   }
 
+  const wrapClass = variant === "embedded" ? "py-2" : "mx-auto max-w-2xl px-4 py-10";
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-        ← Membros do grupo
-      </Link>
-      <h1 className="mt-4 font-display text-2xl font-bold text-white">Scouts do grupo</h1>
+    <div id="config-scouts" className={wrapClass}>
+      {variant === "page" ? (
+        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+          ← Membros do grupo
+        </Link>
+      ) : null}
+      {variant === "embedded" ? (
+        <h2 className="mt-2 font-display text-xl font-bold text-white">Scouts do grupo</h2>
+      ) : (
+        <h1 className="mt-4 font-display text-2xl font-bold text-white">Scouts do grupo</h1>
+      )}
       <p className="mt-2 text-sm text-slate-400">
         Estatísticas de ranking (jogos, vitórias, empates, derrotas, pontos e aproveitamento) vêm
         automaticamente do resultado do jogo e da sua presença como &quot;Vou&quot;. Abaixo você
