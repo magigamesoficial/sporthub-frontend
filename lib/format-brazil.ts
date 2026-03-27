@@ -13,3 +13,10 @@ export function formatBrazilPhoneDisplay(stored: string): string {
   }
   return `(${dd}) ${local}`;
 }
+
+/** URL do WhatsApp (wa.me) a partir do telefone salvo na base (ex.: 5511999887766). */
+export function whatsappUrlFromStoredPhone(stored: string): string {
+  const digits = stored.replace(/\D/g, "");
+  if (digits.length === 0) return "https://wa.me/";
+  return `https://wa.me/${digits}`;
+}

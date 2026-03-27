@@ -24,8 +24,9 @@ type BrowseRow = {
   presidentId: string;
   createdAt: string;
   viewerIsMember: boolean;
+  viewerPendingJoinRequestId: string | null;
   canRequestJoin: boolean;
-  members: { userId: string; fullName: string; role: string }[];
+  members: { userId: string; fullName: string; role: string; feePlanName: string | null }[];
   memberCount: number | null;
 };
 
@@ -101,6 +102,36 @@ export function BuscarGruposPanel() {
         return;
       }
       toast.success("Solicitação enviada. Aguarde aprovação da diretoria.");
+      await search();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setJoiningId(null);
+    }
+  }
+
+  async function cancelJoinRequest(groupId: string) {
+    setJoiningId(groupId);
+    try {
+      const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
+        `/groups/${groupId}/join-requests/me`,
+        { method: "DELETE" },
+      );
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível cancelar o pedido.");
+        return;
+      }
+      toast.success("Pedido de entrada cancelado.");
       await search();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
@@ -233,6 +264,15 @@ export function BuscarGruposPanel() {
                       >
                         Abrir painel
                       </Link>
+                    ) : g.viewerPendingJoinRequestId ? (
+                      <button
+                        type="button"
+                        disabled={joiningId !== null}
+                        onClick={() => void cancelJoinRequest(g.id)}
+                        className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        {joiningId === g.id ? "…" : "Cancelar pedido"}
+                      </button>
                     ) : g.canRequestJoin ? (
                       <button
                         type="button"
@@ -252,10 +292,16 @@ export function BuscarGruposPanel() {
                 {g.members.length > 0 && (
                   <ul className="mt-4 grid gap-1 text-sm text-slate-400 sm:grid-cols-2">
                     {g.members.map((m) => (
-                      <li key={`${g.id}-${m.userId}`}>
+                      <li key={`${g.id}-${m.userId}`} className="text-xs leading-snug">
                         <span className="text-slate-200">{m.fullName}</span>
                         <span className="text-slate-600"> · </span>
-                        <span className="text-xs">{groupMemberRoleLabel(m.role)}</span>
+                        <span className="text-slate-500">{groupMemberRoleLabel(m.role)}</span>
+                        <span className="mt-0.5 block text-slate-500">
+                          Mensalidade:{" "}
+                          <span className="text-slate-400">
+                            {m.feePlanName ?? "não vinculada a um plano"}
+                          </span>
+                        </span>
                       </li>
                     ))}
                   </ul>

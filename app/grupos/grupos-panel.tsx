@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
-import {
-  ATHLETE_SPORT_SELECT_OPTIONS,
-  groupMemberRoleLabel,
-  groupVisibilityLabel,
-} from "@/lib/athlete-labels";
+import { groupMemberRoleLabel, groupVisibilityLabel, sportLabel } from "@/lib/athlete-labels";
 import { toast } from "sonner";
 
 type GroupRow = {
@@ -31,10 +27,6 @@ type ApiErr = { error?: string; code?: string };
 export function GruposPanel() {
   const router = useRouter();
   const [groups, setGroups] = useState<GroupRow[] | null>(null);
-  const [name, setName] = useState("");
-  const [sport, setSport] = useState("FOOTBALL");
-  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
-  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     const token =
@@ -71,43 +63,6 @@ export function GruposPanel() {
     void load();
   }, [load]);
 
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const r = await apiJsonAuth<
-        | { group: { publicCode: string; name: string } }
-        | ApiErr
-      >("/groups", {
-        method: "POST",
-        body: JSON.stringify({ name, sport, visibility }),
-      });
-      if (r.status === 401) {
-        router.replace("/login");
-        return;
-      }
-      if (!r.ok) {
-        toastFromApi(r.data as ApiErr, "Não foi possível criar o grupo.");
-        return;
-      }
-      const created = r.data as { group: { name: string } };
-      toast.success(`Grupo «${created.group.name}» criado.`);
-      setName("");
-      window.dispatchEvent(new CustomEvent("sporthub:my-groups-changed"));
-      await load();
-    } catch (e) {
-      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
-        toast.error(
-          "A URL da API não está configurada neste ambiente. Avise o administrador.",
-        );
-      } else {
-        toastNetworkError();
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
-
   if (groups === null) {
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-400">
@@ -132,92 +87,48 @@ export function GruposPanel() {
           </Link>
         </div>
       </div>
-      <p className="mt-1 text-sm text-slate-400">
-        Crie um grupo (você será o presidente) ou veja os que já participa.
-      </p>
 
-      <form
-        onSubmit={onCreate}
-        className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-pitch-900/60 p-6"
-      >
-        <h2 className="font-display text-lg font-semibold text-white">Novo grupo</h2>
-        <div>
-          <label className="block text-sm text-slate-300" htmlFor="gname">
-            Nome
-          </label>
-          <input
-            id="gname"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm text-slate-300" htmlFor="gsport">
-              Esporte
-            </label>
-            <select
-              id="gsport"
-              value={sport}
-              onChange={(e) => setSport(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
-            >
-              {ATHLETE_SPORT_SELECT_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-slate-300" htmlFor="gvis">
-              Visibilidade
-            </label>
-            <select
-              id="gvis"
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as "PUBLIC" | "PRIVATE")}
-              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
-            >
-              <option value="PUBLIC">Público</option>
-              <option value="PRIVATE">Privado</option>
-            </select>
-          </div>
-        </div>
-        <button
-          type="submit"
-          disabled={creating}
-          className="w-full rounded-xl bg-turf py-3 font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
-        >
-          {creating ? "Criando…" : "Criar grupo"}
-        </button>
-      </form>
-
-      <ul className="mt-10 space-y-3">
-        {groups.length === 0 && (
-          <li className="text-sm text-slate-500">Você ainda não participa de nenhum grupo.</li>
-        )}
-        {groups.map((row) => (
-          <li
-            key={row.group.id}
-            className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
-          >
-            <Link
-              href={`/grupos/${row.group.id}`}
-              className="font-medium text-white hover:text-turf-bright"
-            >
-              {row.group.name}
-            </Link>
-            <p className="mt-1 text-xs text-slate-400">
-              Código: <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
-              {groupVisibilityLabel(row.group.visibility)} · Papel:{" "}
-              {groupMemberRoleLabel(row.role)}
-            </p>
-          </li>
-        ))}
-      </ul>
+      {groups.length === 0 ? (
+        <p className="mt-6 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-6 text-sm text-slate-400">
+          Você ainda não participa de nenhum grupo. Use{" "}
+          <Link href="/grupos/buscar" className="text-turf-bright hover:underline">
+            Buscar grupos
+          </Link>{" "}
+          para encontrar um público ou{" "}
+          <Link href="/grupos/entrar" className="text-turf-bright hover:underline">
+            entrar por código
+          </Link>
+          .
+        </p>
+      ) : (
+        <>
+          <p className="mt-4 text-sm text-slate-400">
+            Você participa de <strong className="text-slate-200">{groups.length}</strong>{" "}
+            {groups.length === 1 ? "grupo" : "grupos"}. Abra pelo nome ou pelo menu lateral.
+          </p>
+          <ul className="mt-8 space-y-3">
+            {groups.map((row) => (
+              <li
+                key={row.group.id}
+                className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
+              >
+                <Link
+                  href={`/grupos/${row.group.id}`}
+                  className="font-medium text-white hover:text-turf-bright"
+                >
+                  {row.group.name}
+                </Link>
+                <p className="mt-1 text-xs text-slate-400">
+                  {sportLabel(row.group.sport)} · código{" "}
+                  <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
+                  {groupVisibilityLabel(row.group.visibility)} · papel:{" "}
+                  {groupMemberRoleLabel(row.role)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
