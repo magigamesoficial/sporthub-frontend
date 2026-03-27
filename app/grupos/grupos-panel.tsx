@@ -93,6 +93,7 @@ export function GruposPanel() {
       const created = r.data as { group: { name: string } };
       toast.success(`Grupo «${created.group.name}» criado.`);
       setName("");
+      window.dispatchEvent(new CustomEvent("sporthub:my-groups-changed"));
       await load();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {

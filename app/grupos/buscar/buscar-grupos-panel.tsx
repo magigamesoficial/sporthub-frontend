@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { CreateGroupModal } from "@/components/create-group-modal";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import {
@@ -37,6 +38,7 @@ export function BuscarGruposPanel() {
   const [rows, setRows] = useState<BrowseRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const search = useCallback(async () => {
     const token =
@@ -115,11 +117,33 @@ export function BuscarGruposPanel() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
+      <CreateGroupModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void search()}
+      />
       <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
         ← Início
       </Link>
-      <h1 className="mt-4 font-display text-2xl font-bold text-white">Buscar grupos</h1>
-      <p className="mt-1 text-sm text-slate-400">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-display text-2xl font-bold text-white">Buscar grupos</h1>
+        <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3 sm:border-0 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="rounded-lg bg-turf px-4 py-2 text-xs font-bold uppercase tracking-wide text-pitch-950 hover:bg-turf-bright"
+          >
+            Criar grupo
+          </button>
+          <Link
+            href="/grupos/entrar"
+            className="rounded-lg border border-white/20 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5"
+          >
+            Entrar por código
+          </Link>
+        </div>
+      </div>
+      <p className="mt-2 text-sm text-slate-400">
         Grupos públicos mostram a lista de membros. Grupos privados exibem apenas o presidente até
         você fazer parte.
       </p>

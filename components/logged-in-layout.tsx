@@ -13,34 +13,42 @@ type MeUser = {
   role: string;
 };
 
-function isMyGroupsSection(path: string): boolean {
-  if (path === "/grupos") return true;
-  if (path.startsWith("/grupos/entrar") || path.startsWith("/grupos/buscar")) return false;
-  if (/^\/grupos\/[^/]+/.test(path)) return true;
-  return false;
+type MyGroupNav = { id: string; name: string };
+
+function pathInMeusGrupos(pathname: string): boolean {
+  if (pathname === "/grupos") return true;
+  if (pathname.startsWith("/grupos/buscar") || pathname.startsWith("/grupos/entrar")) {
+    return false;
+  }
+  return /^\/grupos\/[^/]+/.test(pathname);
 }
 
-function navActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  if (href === "/grupos/buscar") return pathname.startsWith("/grupos/buscar");
-  if (href === "/grupos/entrar") return pathname.startsWith("/grupos/entrar");
-  if (href === "/conta") return pathname === "/conta";
-  if (href === "/grupos") return isMyGroupsSection(pathname);
-  return false;
+function groupPathActive(pathname: string, groupId: string): boolean {
+  return pathname === `/grupos/${groupId}` || pathname.startsWith(`/grupos/${groupId}/`);
 }
 
-const SIDEBAR_LINKS: { href: string; label: string }[] = [
-  { href: "/dashboard", label: "Início" },
-  { href: "/grupos", label: "Meus grupos" },
-  { href: "/grupos/buscar", label: "Buscar grupos" },
-  { href: "/grupos/entrar", label: "Entrar por código" },
-  { href: "/conta", label: "Conta" },
-];
+function sidebarLinkClass(active: boolean): string {
+  return `block rounded-lg px-3 py-2 text-sm font-medium transition ${
+    active ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"
+  }`;
+}
+
+function subLinkClass(active: boolean): string {
+  return `block rounded-md px-3 py-1.5 text-xs font-medium transition ${
+    active ? "bg-white/10 text-turf-bright" : "text-slate-500 hover:bg-white/5 hover:text-slate-200"
+  }`;
+}
+
+function mobileLinkClass(active: boolean): string {
+  return `rounded-md px-2 py-1 ${active ? "bg-white/10 text-white" : "text-slate-400"}`;
+}
 
 export function LoggedInLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<MeUser | null | undefined>(undefined);
+  const [myGroups, setMyGroups] = useState<MyGroupNav[]>([]);
+  const [meusOpen, setMeusOpen] = useState(true);
 
   const loadMe = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -57,9 +65,42 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const fetchMyGroups = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) return;
+    const r = await apiJsonAuth<{ groups: { group: { id: string; name: string } }[] }>(
+      "/groups/mine",
+    );
+    if (r.ok && "groups" in r.data) {
+      const rows = (r.data as { groups: { group: { id: string; name: string } }[] }).groups
+        .map((row) => ({ id: row.group.id, name: row.group.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+      setMyGroups(rows);
+    }
+  }, []);
+
   useEffect(() => {
     void loadMe();
   }, [loadMe]);
+
+  useEffect(() => {
+    if (user && user.role !== "ADMIN") {
+      void fetchMyGroups();
+    }
+  }, [user, fetchMyGroups]);
+
+  useEffect(() => {
+    const onRefresh = () => void fetchMyGroups();
+    window.addEventListener("sporthub:my-groups-changed", onRefresh);
+    return () => window.removeEventListener("sporthub:my-groups-changed", onRefresh);
+  }, [fetchMyGroups]);
+
+  useEffect(() => {
+    if (pathInMeusGrupos(pathname)) {
+      setMeusOpen(true);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -76,6 +117,7 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
   }
 
   const authed = user != null;
+  const meusAreaActive = pathInMeusGrupos(pathname);
 
   if (user?.role === "ADMIN") {
     return (
@@ -93,20 +135,50 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
             Sport<span className="text-turf-bright">Hub</span>
           </Link>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {SIDEBAR_LINKS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                navActive(pathname, item.href)
-                  ? "bg-white/10 text-white"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+          <Link href="/dashboard" className={sidebarLinkClass(pathname === "/dashboard")}>
+            Início
+          </Link>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setMeusOpen((v) => !v)}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                meusAreaActive ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"
               }`}
             >
-              {item.label}
-            </Link>
-          ))}
+              <span>Meus grupos</span>
+              <span className="text-xs text-slate-500">{meusOpen ? "▼" : "▶"}</span>
+            </button>
+            {meusOpen && (
+              <div className="ml-1 mt-0.5 space-y-0.5 border-l border-white/10 pl-2">
+                <Link href="/grupos" className={subLinkClass(pathname === "/grupos")}>
+                  Visão geral
+                </Link>
+                {myGroups.map((g) => (
+                  <Link
+                    key={g.id}
+                    href={`/grupos/${g.id}`}
+                    className={subLinkClass(groupPathActive(pathname, g.id))}
+                    title={g.name}
+                  >
+                    <span className="line-clamp-2">{g.name}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/grupos/buscar"
+            className={sidebarLinkClass(pathname.startsWith("/grupos/buscar"))}
+          >
+            Buscar grupos
+          </Link>
+          <Link href="/conta" className={sidebarLinkClass(pathname === "/conta")}>
+            Conta
+          </Link>
         </nav>
         <div className="border-t border-white/10 p-3 text-xs text-slate-500">
           {user === undefined ? (
@@ -144,20 +216,44 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
                 Sair
               </button>
             ) : null}
-            <nav className="flex w-full flex-wrap items-center gap-1 text-xs">
-              {SIDEBAR_LINKS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded-md px-2 py-1 ${
-                    navActive(pathname, item.href)
-                      ? "bg-white/10 text-white"
-                      : "text-slate-400"
-                  }`}
-                >
-                  {item.label.replace(" grupos", "")}
-                </Link>
-              ))}
+            <nav className="flex w-full flex-col gap-1 text-xs">
+              <Link href="/dashboard" className={mobileLinkClass(pathname === "/dashboard")}>
+                Início
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMeusOpen((v) => !v)}
+                className={`w-full rounded-md px-2 py-1 text-left ${
+                  meusAreaActive ? "bg-white/10 text-white" : "text-slate-400"
+                }`}
+              >
+                Meus grupos {meusOpen ? "▼" : "▶"}
+              </button>
+              {meusOpen && (
+                <div className="ml-2 flex flex-col gap-0.5 border-l border-white/10 pl-2">
+                  <Link href="/grupos" className={mobileLinkClass(pathname === "/grupos")}>
+                    Visão geral
+                  </Link>
+                  {myGroups.map((g) => (
+                    <Link
+                      key={g.id}
+                      href={`/grupos/${g.id}`}
+                      className={mobileLinkClass(groupPathActive(pathname, g.id))}
+                    >
+                      <span className="line-clamp-2">{g.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <Link
+                href="/grupos/buscar"
+                className={mobileLinkClass(pathname.startsWith("/grupos/buscar"))}
+              >
+                Buscar grupos
+              </Link>
+              <Link href="/conta" className={mobileLinkClass(pathname === "/conta")}>
+                Conta
+              </Link>
             </nav>
           </div>
         </header>
