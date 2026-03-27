@@ -58,14 +58,6 @@ export function AdminLayoutShell({
             </button>
           ))}
         </nav>
-        <div className="hidden border-t border-white/10 p-3 md:block">
-          <Link
-            href="/dashboard"
-            className="text-xs text-slate-500 transition hover:text-slate-300 hover:underline"
-          >
-            Abrir área do atleta
-          </Link>
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

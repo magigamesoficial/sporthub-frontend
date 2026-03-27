@@ -5,17 +5,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import {
+  ATHLETE_SPORT_SELECT_OPTIONS,
+  groupMemberRoleLabel,
+  sportLabel,
+} from "@/lib/athlete-labels";
 import { toast } from "sonner";
 
-const SPORTS: { value: string; label: string }[] = [
-  { value: "", label: "Todos os esportes" },
-  { value: "FOOTBALL", label: "Futebol" },
-  { value: "VOLLEYBALL", label: "Vôlei" },
-  { value: "BEACH_TENNIS", label: "Beach tennis" },
-  { value: "PADEL", label: "Padel" },
-  { value: "FUTVOLEI", label: "Futvôlei" },
-  { value: "BASKETBALL", label: "Basquete" },
-];
+const SPORTS = [{ value: "", label: "Todos os esportes" }, ...ATHLETE_SPORT_SELECT_OPTIONS];
 
 type BrowseRow = {
   id: string;
@@ -179,7 +176,7 @@ export function BuscarGruposPanel() {
           <li className="text-sm text-slate-500">Nenhum grupo encontrado.</li>
         ) : (
           rows.map((g) => {
-            const sportLabel = SPORTS.find((s) => s.value === g.sport)?.label ?? g.sport;
+            const sportPt = sportLabel(g.sport);
             return (
               <li
                 key={g.id}
@@ -189,7 +186,7 @@ export function BuscarGruposPanel() {
                   <div>
                     <p className="font-display text-lg font-semibold text-white">{g.name}</p>
                     <p className="text-xs text-slate-500">
-                      {sportLabel} · Código {g.publicCode} ·{" "}
+                      {sportPt} · Código {g.publicCode} ·{" "}
                       {g.visibility === "PUBLIC" ? (
                         <span className="text-emerald-300/90">Público</span>
                       ) : (
@@ -234,7 +231,7 @@ export function BuscarGruposPanel() {
                       <li key={`${g.id}-${m.userId}`}>
                         <span className="text-slate-200">{m.fullName}</span>
                         <span className="text-slate-600"> · </span>
-                        <span className="text-xs">{m.role}</span>
+                        <span className="text-xs">{groupMemberRoleLabel(m.role)}</span>
                       </li>
                     ))}
                   </ul>

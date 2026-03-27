@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -100,7 +101,7 @@ export function ContaPanel() {
         </div>
         <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Celular</dt>
-          <dd className="mt-1 font-mono text-white">{user.phone}</dd>
+          <dd className="mt-1 font-mono text-white">{formatBrazilPhoneDisplay(user.phone)}</dd>
         </div>
         <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -110,18 +111,9 @@ export function ContaPanel() {
         </div>
         <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Papel</dt>
-          <dd className="mt-1 text-white">
-            {user.role === "ADMIN" ? "Administrador" : "Atleta"}
-          </dd>
+          <dd className="mt-1 text-white">Atleta</dd>
         </div>
       </dl>
-      {user.role === "ADMIN" && (
-        <p className="mt-6 text-sm">
-          <Link href="/admin" className="font-medium text-amber-200 hover:text-amber-100 hover:underline">
-            Abrir painel de administração da plataforma →
-          </Link>
-        </p>
-      )}
     </div>
   );
 }

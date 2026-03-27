@@ -25,7 +25,6 @@ function navActive(pathname: string, href: string): boolean {
   if (href === "/grupos/buscar") return pathname.startsWith("/grupos/buscar");
   if (href === "/grupos/entrar") return pathname.startsWith("/grupos/entrar");
   if (href === "/conta") return pathname === "/conta";
-  if (href === "/admin") return pathname.startsWith("/admin");
   if (href === "/grupos") return isMyGroupsSection(pathname);
   return false;
 }
@@ -62,6 +61,12 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
     void loadMe();
   }, [loadMe]);
 
+  useEffect(() => {
+    if (user?.role === "ADMIN") {
+      router.replace("/admin");
+    }
+  }, [user, router]);
+
   function onLogout() {
     if (typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -71,6 +76,14 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
   }
 
   const authed = user != null;
+
+  if (user?.role === "ADMIN") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-pitch-950 px-4 text-sm text-slate-400">
+        Redirecionando para o painel administrativo…
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -94,30 +107,34 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
               {item.label}
             </Link>
           ))}
-          {user?.role === "ADMIN" && (
-            <Link
-              href="/admin"
-              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                navActive(pathname, "/admin")
-                  ? "bg-amber-500/20 text-amber-100"
-                  : "text-amber-200/90 hover:bg-amber-500/10 hover:text-amber-50"
-              }`}
-            >
-              Administração
-            </Link>
-          )}
         </nav>
         <div className="border-t border-white/10 p-3 text-xs text-slate-500">
-          {user === undefined ? "…" : authed ? <span className="line-clamp-2">{user.fullName}</span> : null}
+          {user === undefined ? (
+            "…"
+          ) : authed ? (
+            <div className="space-y-1">
+              <span className="inline-block rounded border border-turf/30 bg-turf/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-turf-bright">
+                Atleta
+              </span>
+              <span className="line-clamp-2 block text-slate-400">{user.fullName}</span>
+            </div>
+          ) : null}
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-white/10 bg-pitch-950/90 backdrop-blur-md md:hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <Link href="/dashboard" className="font-display text-lg font-bold text-white">
-              Sport<span className="text-turf-bright">Hub</span>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/dashboard" className="font-display text-lg font-bold text-white">
+                Sport<span className="text-turf-bright">Hub</span>
+              </Link>
+              {authed && user !== undefined ? (
+                <span className="rounded border border-turf/30 bg-turf/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-turf-bright">
+                  Atleta
+                </span>
+              ) : null}
+            </div>
             {authed && user !== undefined ? (
               <button
                 type="button"
@@ -141,16 +158,6 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
                   {item.label.replace(" grupos", "")}
                 </Link>
               ))}
-              {user?.role === "ADMIN" && (
-                <Link
-                  href="/admin"
-                  className={`rounded-md px-2 py-1 ${
-                    navActive(pathname, "/admin") ? "bg-amber-500/20 text-amber-100" : "text-amber-200/80"
-                  }`}
-                >
-                  Admin
-                </Link>
-              )}
             </nav>
           </div>
         </header>
@@ -161,6 +168,9 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
               <span className="text-sm text-slate-500">…</span>
             ) : authed ? (
               <>
+                <span className="rounded-md border border-turf/35 bg-turf/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-turf-bright">
+                  Atleta
+                </span>
                 <span className="max-w-[16rem] truncate text-sm text-slate-400">{user.fullName}</span>
                 <button
                   type="button"

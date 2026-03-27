@@ -5,24 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { groupMemberRoleLabel, sportLabel } from "@/lib/athlete-labels";
 import { toast } from "sonner";
-
-const SPORT_LABEL: Record<string, string> = {
-  FOOTBALL: "Futebol",
-  VOLLEYBALL: "Vôlei",
-  BEACH_TENNIS: "Beach tennis",
-  PADEL: "Padel",
-  FUTVOLEI: "Futvôlei",
-  BASKETBALL: "Basquete",
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  PRESIDENT: "Presidente",
-  VICE_PRESIDENT: "Vice-presidente",
-  TREASURER: "Tesoureiro",
-  MODERATOR: "Moderador",
-  MEMBER: "Membro",
-};
 
 type PublicProfileResponse = {
   group: {
@@ -135,7 +119,7 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">{group.name}</h1>
       <p className="mt-1 text-sm text-slate-400">
-        {SPORT_LABEL[group.sport] ?? group.sport} · Código {group.publicCode} ·{" "}
+        {sportLabel(group.sport)} · Código {group.publicCode} ·{" "}
         {group.visibility === "PUBLIC" ? (
           <span className="text-emerald-300/90">Público</span>
         ) : (
@@ -181,7 +165,7 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
             className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
           >
             <p className="font-medium text-white">{m.fullName}</p>
-            <p className="text-xs text-slate-500">{ROLE_LABELS[m.role] ?? m.role}</p>
+            <p className="text-xs text-slate-500">{groupMemberRoleLabel(m.role)}</p>
           </li>
         ))}
       </ul>

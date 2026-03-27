@@ -40,7 +40,8 @@ export default function DashboardPage() {
         Olá, {name.split(" ")[0]}!
       </h1>
       <p className="mt-2 text-slate-400">
-        Use o menu à esquerda para acessar seus grupos, buscar novos e gerenciar sua conta.
+        Use o menu — na barra lateral no computador ou no topo no celular — para seus grupos, busca e
+        conta.
       </p>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">

@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { groupMemberRoleLabel } from "@/lib/athlete-labels";
+import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
-
-const ROLE_LABELS: Record<string, string> = {
-  PRESIDENT: "Presidente",
-  VICE_PRESIDENT: "Vice-presidente",
-  TREASURER: "Tesoureiro",
-  MODERATOR: "Moderador",
-  MEMBER: "Membro",
-};
 
 type FeePlan = { id: string; name: string; amountCents: number };
 
@@ -298,7 +292,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
       <p className="mt-1 text-sm text-slate-400">
         Seu papel:{" "}
         <span className="text-turf-bright">
-          {ROLE_LABELS[data.viewer.role] ?? data.viewer.role}
+          {groupMemberRoleLabel(data.viewer.role)}
         </span>
         {" · "}
         <Link
@@ -358,7 +352,7 @@ export function GroupDetail({ groupId }: { groupId: string }) {
                 <div>
                   <p className="font-medium text-white">{q.user.fullName}</p>
                   <p className="text-xs text-slate-400">
-                    {q.user.phone} · {q.user.email}
+                    {formatBrazilPhoneDisplay(q.user.phone)} · {q.user.email}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -424,7 +418,8 @@ export function GroupDetail({ groupId }: { groupId: string }) {
           >
             <p className="font-medium text-white">{m.user.fullName}</p>
             <p className="text-xs text-slate-400">
-              {ROLE_LABELS[m.role] ?? m.role} · {m.user.phone} · {m.user.email}
+              {groupMemberRoleLabel(m.role)} · {formatBrazilPhoneDisplay(m.user.phone)} ·{" "}
+              {m.user.email}
             </p>
             {m.feePlan && (
               <p className="mt-1 text-xs text-slate-500">

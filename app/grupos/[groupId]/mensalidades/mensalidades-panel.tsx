@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { groupMemberRoleLabel } from "@/lib/athlete-labels";
+import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
-
-const ROLE_LABELS: Record<string, string> = {
-  PRESIDENT: "Presidente",
-  VICE_PRESIDENT: "Vice-presidente",
-  TREASURER: "Tesoureiro",
-  MODERATOR: "Moderador",
-  MEMBER: "Membro",
-};
 
 type FeePlan = { id: string; name: string; amountCents: number };
 
@@ -419,7 +413,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
             <div className="min-w-0 flex-1">
               <p className="font-medium text-white">{row.fullName}</p>
               <p className="text-xs text-slate-400">
-                {ROLE_LABELS[row.role] ?? row.role} · {row.phone}
+                {groupMemberRoleLabel(row.role)} · {formatBrazilPhoneDisplay(row.phone)}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Plano atual:{" "}

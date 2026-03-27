@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { groupMemberRoleLabel } from "@/lib/athlete-labels";
+import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
-
-const ROLE_LABELS: Record<string, string> = {
-  PRESIDENT: "Presidente",
-  VICE_PRESIDENT: "Vice-presidente",
-  TREASURER: "Tesoureiro",
-  MODERATOR: "Moderador",
-  MEMBER: "Membro",
-};
 
 const STATUS_LABEL: Record<string, string> = {
   GOING: "Vou",
@@ -815,7 +809,7 @@ export function GameDetailPanel({
             <div>
               <p className="font-medium text-white">{m.fullName}</p>
               <p className="text-xs text-slate-500">
-                {ROLE_LABELS[m.role] ?? m.role} · {m.phone}
+                {groupMemberRoleLabel(m.role)} · {formatBrazilPhoneDisplay(m.phone)}
                 {m.attendance?.teamSide
                   ? ` · ${m.attendance.teamSide === "TEAM_A" ? "Time A" : "Time B"}`
                   : ""}

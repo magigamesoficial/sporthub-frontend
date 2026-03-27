@@ -105,12 +105,15 @@ export function LoginForm() {
             <label className="block text-sm font-medium text-slate-300" htmlFor="phone">
               Celular
             </label>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Mesmo número do cadastro; pode digitar só dígitos ou com DDD, espaços e hífen.
+            </p>
             <input
               id="phone"
               name="phone"
               required
               autoComplete="tel"
-              placeholder="47988169663"
+              placeholder="DDD + número do celular"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"

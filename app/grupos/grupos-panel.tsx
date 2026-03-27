@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import {
+  ATHLETE_SPORT_SELECT_OPTIONS,
+  groupMemberRoleLabel,
+  groupVisibilityLabel,
+} from "@/lib/athlete-labels";
 import { toast } from "sonner";
-
-const SPORTS: { value: string; label: string }[] = [
-  { value: "FOOTBALL", label: "Futebol" },
-  { value: "VOLLEYBALL", label: "Vôlei" },
-  { value: "BEACH_TENNIS", label: "Beach tennis" },
-  { value: "PADEL", label: "Padel" },
-  { value: "FUTVOLEI", label: "Futvôlei" },
-  { value: "BASKETBALL", label: "Basquete" },
-];
 
 type GroupRow = {
   role: string;
@@ -167,7 +163,7 @@ export function GruposPanel() {
               onChange={(e) => setSport(e.target.value)}
               className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
             >
-              {SPORTS.map((s) => (
+              {ATHLETE_SPORT_SELECT_OPTIONS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
@@ -215,7 +211,8 @@ export function GruposPanel() {
             </Link>
             <p className="mt-1 text-xs text-slate-400">
               Código: <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
-              {row.group.visibility === "PUBLIC" ? "Público" : "Privado"} · Papel: {row.role}
+              {groupVisibilityLabel(row.group.visibility)} · Papel:{" "}
+              {groupMemberRoleLabel(row.role)}
             </p>
           </li>
         ))}

@@ -5,16 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
+import { sportLabel } from "@/lib/athlete-labels";
 import { toast } from "sonner";
-
-const SPORT_LABELS: Record<string, string> = {
-  FOOTBALL: "Futebol",
-  VOLLEYBALL: "Vôlei",
-  BEACH_TENNIS: "Beach tennis",
-  PADEL: "Padel",
-  FUTVOLEI: "Futvôlei",
-  BASKETBALL: "Basquete",
-};
 
 type PreviewOk = {
   group: {
@@ -142,7 +134,7 @@ export function EntrarPanel() {
             {preview.group.name}
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            {SPORT_LABELS[preview.group.sport] ?? preview.group.sport} · Código{" "}
+            {sportLabel(preview.group.sport)} · Código{" "}
             <span className="font-mono text-turf-bright">{preview.group.publicCode}</span>
           </p>
           {preview.isMember && (
