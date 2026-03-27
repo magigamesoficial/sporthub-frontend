@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
@@ -73,33 +72,56 @@ export function GruposPanel() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+      <button
+        type="button"
+        onClick={() => router.push("/dashboard")}
+        className="text-sm text-turf-bright hover:underline"
+      >
         ← Painel inicial
-      </Link>
+      </button>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-3xl font-bold text-white">Meus grupos</h1>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-turf-bright">
-          <Link href="/grupos/buscar" className="hover:underline">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/grupos/buscar")}
+            className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/5"
+          >
             Buscar grupos
-          </Link>
-          <Link href="/grupos/entrar" className="hover:underline">
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/grupos/entrar")}
+            className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/5"
+          >
             Entrar por código
-          </Link>
+          </button>
         </div>
       </div>
 
       {groups.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-6 text-sm text-slate-400">
-          Você ainda não participa de nenhum grupo. Use{" "}
-          <Link href="/grupos/buscar" className="text-turf-bright hover:underline">
-            Buscar grupos
-          </Link>{" "}
-          para encontrar um público ou{" "}
-          <Link href="/grupos/entrar" className="text-turf-bright hover:underline">
-            entrar por código
-          </Link>
-          .
-        </p>
+        <div className="mt-6 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-6 text-sm text-slate-400">
+          <p>
+            Você ainda não participa de nenhum grupo. Encontre um público ou informe o código de
+            seis dígitos:
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/grupos/buscar")}
+              className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/5"
+            >
+              Buscar grupos
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/grupos/entrar")}
+              className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/5"
+            >
+              Entrar por código
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           <p className="mt-4 text-sm text-slate-400">
@@ -123,12 +145,13 @@ export function GruposPanel() {
                       {groupMemberRoleLabel(row.role)}
                     </p>
                   </div>
-                  <Link
-                    href={`/grupos/${row.group.id}`}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/grupos/${row.group.id}`)}
                     className="inline-flex shrink-0 items-center justify-center rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 transition hover:bg-turf-bright"
                   >
                     Ver grupo
-                  </Link>
+                  </button>
                 </div>
               </li>
             ))}

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CreateGroupModal } from "@/components/create-group-modal";
@@ -153,9 +152,13 @@ export function BuscarGruposPanel() {
         onClose={() => setCreateOpen(false)}
         onCreated={() => void search()}
       />
-      <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+      <button
+        type="button"
+        onClick={() => router.push("/dashboard")}
+        className="text-sm text-turf-bright hover:underline"
+      >
         ← Início
-      </Link>
+      </button>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-display text-2xl font-bold text-white">Buscar grupos</h1>
         <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3 sm:border-0 sm:pb-0">
@@ -166,12 +169,13 @@ export function BuscarGruposPanel() {
           >
             Criar grupo
           </button>
-          <Link
-            href="/grupos/entrar"
+          <button
+            type="button"
+            onClick={() => router.push("/grupos/entrar")}
             className="rounded-lg border border-white/20 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5"
           >
             Entrar por código
-          </Link>
+          </button>
         </div>
       </div>
       <p className="mt-2 text-sm text-slate-400">
@@ -251,19 +255,21 @@ export function BuscarGruposPanel() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/grupos/${g.id}/visao`}
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/grupos/${g.id}/visao`)}
                       className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5"
                     >
                       Ver perfil
-                    </Link>
+                    </button>
                     {g.viewerIsMember ? (
-                      <Link
-                        href={`/grupos/${g.id}`}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/grupos/${g.id}`)}
                         className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright"
                       >
                         Abrir painel
-                      </Link>
+                      </button>
                     ) : g.viewerPendingJoinRequestId ? (
                       <button
                         type="button"

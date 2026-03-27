@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
@@ -100,9 +99,13 @@ export function EntrarPanel() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
-      <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
+      <button
+        type="button"
+        onClick={() => router.push("/dashboard")}
+        className="text-sm text-turf-bright hover:underline"
+      >
         ← Painel inicial
-      </Link>
+      </button>
       <h1 className="mt-4 font-display text-2xl font-bold text-white">
         Entrar em grupo público
       </h1>
@@ -158,12 +161,13 @@ export function EntrarPanel() {
             </div>
           )}
           {preview.isMember && (
-            <Link
-              href={`/grupos/${preview.group.id}`}
-              className="mt-4 inline-block text-sm text-turf-bright hover:underline"
+            <button
+              type="button"
+              onClick={() => router.push(`/grupos/${preview.group.id}`)}
+              className="mt-4 inline-flex rounded-lg border border-turf/40 bg-turf/10 px-4 py-2 text-sm font-semibold text-turf-bright hover:bg-turf/20"
             >
               Abrir página do grupo →
-            </Link>
+            </button>
           )}
         </div>
       )}

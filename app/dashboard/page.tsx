@@ -180,29 +180,32 @@ export default function DashboardPage() {
       )}
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/grupos"
-          className="rounded-2xl border border-turf/25 bg-gradient-to-br from-turf/10 to-pitch-950/90 p-6 transition hover:border-turf/50"
+        <button
+          type="button"
+          onClick={() => router.push("/grupos")}
+          className="w-full rounded-2xl border border-turf/25 bg-gradient-to-br from-turf/10 to-pitch-950/90 p-6 text-left transition hover:border-turf/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-turf/40"
         >
           <h2 className="font-display text-lg font-semibold text-white">Meus grupos</h2>
           <p className="mt-2 text-sm text-slate-400">Ver grupos que você participa e abrir o painel.</p>
-        </Link>
-        <Link
-          href="/grupos/buscar"
-          className="rounded-2xl border border-white/15 bg-pitch-950/60 p-6 transition hover:bg-pitch-900/80"
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/grupos/buscar")}
+          className="w-full rounded-2xl border border-white/15 bg-pitch-950/60 p-6 text-left transition hover:bg-pitch-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
         >
           <h2 className="font-display text-lg font-semibold text-white">Buscar grupos</h2>
           <p className="mt-2 text-sm text-slate-400">
             Listagem de todos os grupos: públicos com membros visíveis; privados só o presidente.
           </p>
-        </Link>
-        <Link
-          href="/grupos/entrar"
-          className="rounded-2xl border border-white/15 bg-pitch-950/60 p-6 transition hover:bg-pitch-900/80"
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/grupos/entrar")}
+          className="w-full rounded-2xl border border-white/15 bg-pitch-950/60 p-6 text-left transition hover:bg-pitch-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
         >
           <h2 className="font-display text-lg font-semibold text-white">Entrar por código</h2>
           <p className="mt-2 text-sm text-slate-400">Digite o código de 6 dígitos do grupo.</p>
-        </Link>
+        </button>
         <Link
           href="/conta"
           className="rounded-2xl border border-white/15 bg-pitch-950/60 p-6 transition hover:bg-pitch-900/80"

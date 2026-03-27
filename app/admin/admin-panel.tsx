@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminLayoutShell, type AdminTab } from "@/components/admin-layout-shell";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_SCROLL_CLASS } from "@/lib/modal-layout";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -605,8 +606,8 @@ export function AdminPanel() {
       )}
 
       {editUser && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-pitch-950 p-6 shadow-xl">
+        <div className={MODAL_OVERLAY_CLASS}>
+          <div className={`${MODAL_PANEL_SCROLL_CLASS} max-w-lg bg-pitch-950 p-4 sm:p-6`}>
             <h3 className="font-display text-lg font-semibold text-white">Alterar conta</h3>
             <p className="mt-1 text-xs text-slate-500">
               {editUser.fullName} · ID interno <span className="font-mono">{editUser.id}</span>
@@ -819,8 +820,8 @@ export function AdminPanel() {
       )}
 
       {moderateUserId && moderateKind && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/15 bg-pitch-950 p-6">
+        <div className={MODAL_OVERLAY_CLASS}>
+          <div className={`${MODAL_PANEL_SCROLL_CLASS} max-w-md bg-pitch-950 p-4 sm:p-6`}>
             <h3 className="font-display text-lg font-semibold text-white">
               {moderateKind === "BANNED" ? "Banir conta" : "Bloquear conta"}
             </h3>

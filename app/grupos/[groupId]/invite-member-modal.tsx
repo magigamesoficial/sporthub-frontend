@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiJsonAuth } from "@/lib/api";
+import { MODAL_OVERLAY_SOFT_CLASS, MODAL_PANEL_SCROLL_CLASS } from "@/lib/modal-layout";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -69,7 +70,7 @@ export function InviteMemberModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      className={MODAL_OVERLAY_SOFT_CLASS}
       role="dialog"
       aria-modal="true"
       aria-labelledby="invite-member-title"
@@ -77,7 +78,7 @@ export function InviteMemberModal({
         if (ev.target === ev.currentTarget) onClose();
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/15 bg-pitch-900 p-6 shadow-xl">
+      <div className={`${MODAL_PANEL_SCROLL_CLASS} max-w-md bg-pitch-900 p-4 sm:p-6`}>
         <h2 id="invite-member-title" className="font-display text-lg font-semibold text-white">
           Adicionar jogador
         </h2>

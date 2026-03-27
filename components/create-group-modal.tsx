@@ -6,6 +6,7 @@ import {
   ATHLETE_SPORT_SELECT_OPTIONS,
   groupVisibilityLabel,
 } from "@/lib/athlete-labels";
+import { MODAL_OVERLAY_CLASS, MODAL_PANEL_SCROLL_CLASS } from "@/lib/modal-layout";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -60,8 +61,8 @@ export function CreateGroupModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/15 bg-pitch-950 p-6 shadow-xl">
+    <div className={MODAL_OVERLAY_CLASS}>
+      <div className={`${MODAL_PANEL_SCROLL_CLASS} max-w-md bg-pitch-950 p-4 sm:p-6`}>
         <h2 className="font-display text-xl font-bold text-white">Criar grupo</h2>
         <p className="mt-1 text-xs text-slate-500">
           Você será o presidente. O grupo aparecerá em «Meus grupos».
