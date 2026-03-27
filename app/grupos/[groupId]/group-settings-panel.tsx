@@ -13,7 +13,7 @@ import { ScoutsSettingsPanel } from "./scouts/scouts-settings-panel";
 
 type ApiErr = { error?: string; code?: string };
 
-type FeePlanRow = { id: string; name: string; amountCents: number };
+type FeePlanRow = { id: string; name: string; amountCents: number; sortOrder?: number };
 
 type SettingsMember = {
   userId: string;
@@ -75,6 +75,14 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
   const [richPublicProfile, setRichPublicProfile] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
   const [roleBusyUserId, setRoleBusyUserId] = useState<string | null>(null);
+  const [managedPlans, setManagedPlans] = useState<{
+    list: FeePlanRow[];
+    canManage: boolean;
+  } | null>(null);
+  const [planName, setPlanName] = useState("");
+  const [planAmount, setPlanAmount] = useState("");
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token =
@@ -103,10 +111,22 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
       }
       setBlocked(false);
       const p = r.data as SettingsResponse;
+      const fp = await apiJsonAuth<
+        { plans: FeePlanRow[]; viewer: { canManage: boolean } } | ApiErr
+      >(`/groups/${groupId}/fee-plans`);
+      const plansMerged =
+        fp.ok && "plans" in fp.data
+          ? (fp.data as { plans: FeePlanRow[]; viewer: { canManage: boolean } })
+          : null;
       setData(p);
       setStatuteUrl(p.group.statuteUrl ?? "");
       setLocalRulesNote(p.group.localRulesNote ?? "");
       setRichPublicProfile(p.group.richPublicProfile);
+      setManagedPlans(
+        plansMerged
+          ? { list: plansMerged.plans, canManage: plansMerged.viewer.canManage }
+          : { list: p.feePlans, canManage: false },
+      );
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -117,6 +137,7 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
       }
       setBlocked(true);
       setData(null);
+      setManagedPlans(null);
     }
   }, [groupId, router]);
 
@@ -213,6 +234,84 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
     }
   }
 
+  async function createFeePlan(e: React.FormEvent) {
+    e.preventDefault();
+    if (!managedPlans?.canManage) return;
+    const name = planName.trim();
+    const n = Number(String(planAmount).replace(",", "."));
+    if (!name) {
+      toast.error("Informe o nome do plano.");
+      return;
+    }
+    if (!Number.isFinite(n) || n <= 0) {
+      toast.error("Informe um valor em reais maior que zero.");
+      return;
+    }
+    const amountCents = Math.round(n * 100);
+    setCreatingPlan(true);
+    try {
+      const r = await apiJsonAuth<{ plan: FeePlanRow } | ApiErr>(`/groups/${groupId}/fee-plans`, {
+        method: "POST",
+        body: JSON.stringify({ name, amountCents }),
+      });
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível criar o plano.");
+        return;
+      }
+      toast.success("Plano criado.");
+      setPlanName("");
+      setPlanAmount("");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setCreatingPlan(false);
+    }
+  }
+
+  async function removeFeePlan(planId: string) {
+    setDeletingPlanId(planId);
+    try {
+      const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
+        `/groups/${groupId}/fee-plans/${planId}`,
+        { method: "DELETE" },
+      );
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(
+          r.data as ApiErr,
+          "Não foi possível excluir (talvez algum membro use este plano).",
+        );
+        return;
+      }
+      toast.success("Plano removido.");
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setDeletingPlanId(null);
+    }
+  }
+
   if (blocked && !data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
@@ -234,7 +333,9 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
     );
   }
 
-  const { viewer, group, feePlans, members, periodMonth } = data;
+  const { viewer, group, members, periodMonth } = data;
+  const feePlans = managedPlans?.list ?? data.feePlans;
+  const canManageFeePlans = managedPlans?.canManage ?? false;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -311,25 +412,85 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
           Tipos de mensalidade (planos)
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Cadastro e exclusão de planos continuam na página{" "}
+          Presidente, vice ou tesoureiro criam e excluem planos. Atribua um plano a cada membro em{" "}
+          <Link href={`/grupos/${groupId}`} className="text-turf-bright hover:underline">
+            Membros do grupo
+          </Link>
+          ; registre pagamentos em{" "}
           <Link href={`/grupos/${groupId}/mensalidades`} className="text-turf-bright hover:underline">
             Mensalidades
-          </Link>
-          .
+          </Link>{" "}
+          (o pagamento sempre quita o mês mais antigo em aberto).
         </p>
-        {feePlans.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">Nenhum plano cadastrado ainda.</p>
-        ) : (
+        {feePlans.length > 0 && (
           <ul className="mt-4 space-y-2">
             {feePlans.map((p) => (
               <li
                 key={p.id}
-                className="rounded-lg border border-white/10 bg-pitch-900/40 px-3 py-2 text-sm text-slate-200"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-900/40 px-3 py-2 text-sm"
               >
-                {p.name} · {formatBrlFromCents(p.amountCents)}
+                <span className="text-slate-200">
+                  {p.name} · {formatBrlFromCents(p.amountCents)}
+                </span>
+                {canManageFeePlans ? (
+                  <button
+                    type="button"
+                    disabled={deletingPlanId !== null}
+                    onClick={() => void removeFeePlan(p.id)}
+                    className="text-xs text-red-300 hover:underline disabled:opacity-50"
+                  >
+                    {deletingPlanId === p.id ? "…" : "Excluir"}
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
+        )}
+        {feePlans.length === 0 && !canManageFeePlans ? (
+          <p className="mt-4 text-sm text-slate-500">Nenhum plano cadastrado ainda.</p>
+        ) : null}
+        {canManageFeePlans ? (
+          <form
+            onSubmit={(e) => void createFeePlan(e)}
+            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+          >
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-400" htmlFor="cfg-npn">
+                Nome do plano
+              </label>
+              <input
+                id="cfg-npn"
+                value={planName}
+                onChange={(e) => setPlanName(e.target.value)}
+                placeholder="Ex.: Mensalista — joga + eventos"
+                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
+              />
+            </div>
+            <div className="w-full sm:w-32">
+              <label className="block text-xs font-medium text-slate-400" htmlFor="cfg-npa">
+                Valor (R$)
+              </label>
+              <input
+                id="cfg-npa"
+                inputMode="decimal"
+                value={planAmount}
+                onChange={(e) => setPlanAmount(e.target.value)}
+                placeholder="80"
+                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creatingPlan}
+              className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+            >
+              {creatingPlan ? "…" : "Adicionar plano"}
+            </button>
+          </form>
+        ) : (
+          <p className="mt-4 text-xs text-slate-500">
+            Apenas presidente, vice ou tesoureiro alteram planos de mensalidade.
+          </p>
         )}
       </section>
 

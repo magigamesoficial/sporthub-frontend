@@ -104,7 +104,8 @@ export function GruposPanel() {
         <>
           <p className="mt-4 text-sm text-slate-400">
             Você participa de <strong className="text-slate-200">{groups.length}</strong>{" "}
-            {groups.length === 1 ? "grupo" : "grupos"}. Abra pelo nome ou pelo menu lateral.
+            {groups.length === 1 ? "grupo" : "grupos"}. Use <strong className="text-slate-200">Ver grupo</strong>{" "}
+            ou o menu lateral.
           </p>
           <ul className="mt-8 space-y-3">
             {groups.map((row) => (
@@ -112,18 +113,23 @@ export function GruposPanel() {
                 key={row.group.id}
                 className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
               >
-                <Link
-                  href={`/grupos/${row.group.id}`}
-                  className="font-medium text-white hover:text-turf-bright"
-                >
-                  {row.group.name}
-                </Link>
-                <p className="mt-1 text-xs text-slate-400">
-                  {sportLabel(row.group.sport)} · código{" "}
-                  <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
-                  {groupVisibilityLabel(row.group.visibility)} · papel:{" "}
-                  {groupMemberRoleLabel(row.role)}
-                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium text-white">{row.group.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {sportLabel(row.group.sport)} · código{" "}
+                      <span className="font-mono text-turf-bright">{row.group.publicCode}</span> ·{" "}
+                      {groupVisibilityLabel(row.group.visibility)} · papel:{" "}
+                      {groupMemberRoleLabel(row.role)}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/grupos/${row.group.id}`}
+                    className="inline-flex shrink-0 items-center justify-center rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 transition hover:bg-turf-bright"
+                  >
+                    Ver grupo
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

@@ -364,7 +364,11 @@ export function GroupDetail({ groupId }: { groupId: string }) {
             )}
             {data.viewer.canManageMonthlyFees && feePlans.length === 0 && (
               <p className="mt-2 text-xs text-amber-200/80">
-                Crie planos de mensalidade na página de mensalidades para atribuir valores.
+                Crie planos em{" "}
+                <Link href={`/grupos/${groupId}/configuracao`} className="underline hover:text-amber-100">
+                  Configurações do grupo
+                </Link>{" "}
+                para atribuir valores aos membros.
               </p>
             )}
           </li>

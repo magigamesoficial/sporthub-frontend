@@ -22,10 +22,14 @@ type FeeRow = {
   paidAt: string | null;
   paidWithPlan: FeePlan | null;
   recordedByName: string | null;
+  pastUnpaidMonthsCount: number;
+  oldestUnpaidPastMonth: string | null;
+  nextPaymentWillApplyToMonth: string | null;
 };
 
 type FeesResponse = {
   periodMonth: string;
+  todayYearMonth?: string;
   viewer: { canManageMonthlyFees: boolean };
   rows: FeeRow[];
 };
@@ -67,13 +71,8 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
   const router = useRouter();
   const [yearMonth, setYearMonth] = useState(currentYearMonthLocal);
   const [data, setData] = useState<FeesResponse | null>(null);
-  const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingUserId, setActingUserId] = useState<string | null>(null);
-  const [planName, setPlanName] = useState("");
-  const [planAmount, setPlanAmount] = useState("");
-  const [creatingPlan, setCreatingPlan] = useState(false);
-  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token =
@@ -99,23 +98,9 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       if (!r.ok) {
         toastFromApi(r.data as ApiErr, "Não foi possível carregar as mensalidades.");
         setData(null);
-        setFeePlans([]);
         return;
       }
-      const payload = r.data as FeesResponse;
-      setData(payload);
-      if (payload.viewer.canManageMonthlyFees) {
-        const pr = await apiJsonAuth<{ plans: FeePlan[] } | ApiErr>(
-          `/groups/${groupId}/fee-plans`,
-        );
-        if (pr.ok) {
-          setFeePlans((pr.data as { plans: FeePlan[] }).plans);
-        } else {
-          setFeePlans([]);
-        }
-      } else {
-        setFeePlans([]);
-      }
+      setData(r.data as FeesResponse);
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -140,90 +125,19 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
     return { paid, open: data.rows.length - paid };
   }, [data]);
 
-  async function createFeePlan(e: React.FormEvent) {
-    e.preventDefault();
-    const name = planName.trim();
-    const n = Number(String(planAmount).replace(",", "."));
-    if (!name) {
-      toast.error("Informe o nome do plano.");
-      return;
-    }
-    if (!Number.isFinite(n) || n <= 0) {
-      toast.error("Informe um valor em reais maior que zero.");
-      return;
-    }
-    const amountCents = Math.round(n * 100);
-    setCreatingPlan(true);
-    try {
-      const r = await apiJsonAuth<{ plan: FeePlan } | ApiErr>(`/groups/${groupId}/fee-plans`, {
-        method: "POST",
-        body: JSON.stringify({ name, amountCents }),
-      });
-      if (r.status === 401) {
-        router.replace("/login");
-        return;
-      }
-      if (!r.ok) {
-        toastFromApi(r.data as ApiErr, "Não foi possível criar o plano.");
-        return;
-      }
-      toast.success("Plano criado.");
-      setPlanName("");
-      setPlanAmount("");
-      await load();
-    } catch (e) {
-      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
-        toast.error(
-          "A URL da API não está configurada neste ambiente. Avise o administrador.",
-        );
-      } else {
-        toastNetworkError();
-      }
-    } finally {
-      setCreatingPlan(false);
-    }
-  }
-
-  async function removeFeePlan(planId: string) {
-    setDeletingPlanId(planId);
-    try {
-      const r = await apiJsonAuth<{ ok?: boolean } | ApiErr>(
-        `/groups/${groupId}/fee-plans/${planId}`,
-        { method: "DELETE" },
-      );
-      if (r.status === 401) {
-        router.replace("/login");
-        return;
-      }
-      if (!r.ok) {
-        toastFromApi(
-          r.data as ApiErr,
-          "Não foi possível excluir (talvez algum membro use este plano).",
-        );
-        return;
-      }
-      toast.success("Plano removido.");
-      await load();
-    } catch (e) {
-      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
-        toast.error(
-          "A URL da API não está configurada neste ambiente. Avise o administrador.",
-        );
-      } else {
-        toastNetworkError();
-      }
-    } finally {
-      setDeletingPlanId(null);
-    }
-  }
-
   async function markPaid(userId: string) {
     setActingUserId(userId);
     try {
-      const r = await apiJsonAuth<{ fee?: unknown } | ApiErr>(
-        `/groups/${groupId}/fees/${yearMonth}/mark-paid`,
-        { method: "POST", body: JSON.stringify({ userId }) },
-      );
+      const r = await apiJsonAuth<
+        | {
+            fee?: { periodMonth: string };
+            appliedPeriodMonth?: string;
+          }
+        | ApiErr
+      >(`/groups/${groupId}/fees/${yearMonth}/mark-paid`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
       if (r.status === 401) {
         router.replace("/login");
         return;
@@ -232,7 +146,13 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
         toastFromApi(r.data as ApiErr, "Não foi possível registrar o pagamento.");
         return;
       }
-      toast.success("Pagamento registrado.");
+      const body = r.data as { appliedPeriodMonth?: string; fee?: { periodMonth: string } };
+      const applied = body.appliedPeriodMonth ?? body.fee?.periodMonth;
+      toast.success(
+        applied
+          ? `Pagamento baixado em ${formatMonthLabel(applied)} (sempre o mês mais antigo em aberto).`
+          : "Pagamento registrado.",
+      );
       await load();
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
@@ -312,72 +232,14 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Mensalidades</h1>
       <p className="mt-1 text-sm text-slate-400">
-        Crie planos (ex.: mensalista joga, diarista, só eventos) com valor em reais. Cada membro
-        recebe um plano em «Membros do grupo». Ao marcar pago, o caixa recebe a entrada
-        automaticamente.
+        Cadastre os tipos de plano em{" "}
+        <Link href={`/grupos/${groupId}/configuracao`} className="text-turf-bright hover:underline">
+          Configurações do grupo
+        </Link>
+        . Atribua um plano a cada membro em «Membros do grupo». Ao marcar pago, o caixa recebe a
+        entrada e o pagamento <strong className="text-slate-300">sempre quita o mês mais antigo</strong>{" "}
+        ainda em aberto (até o mês de referência abaixo ou o mês atual).
       </p>
-
-      {data.viewer.canManageMonthlyFees && (
-        <div className="mt-8 rounded-2xl border border-white/10 bg-pitch-900/50 p-6">
-          <h2 className="font-display text-lg font-semibold text-white">Planos de mensalidade</h2>
-          {feePlans.length > 0 && (
-            <ul className="mt-4 space-y-2">
-              {feePlans.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/40 px-3 py-2 text-sm"
-                >
-                  <span className="text-slate-200">
-                    {p.name} · {formatBrlFromCents(p.amountCents)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={deletingPlanId !== null}
-                    onClick={() => void removeFeePlan(p.id)}
-                    className="text-xs text-red-300 hover:underline disabled:opacity-50"
-                  >
-                    {deletingPlanId === p.id ? "…" : "Excluir"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <form onSubmit={createFeePlan} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-400" htmlFor="npn">
-                Nome do plano
-              </label>
-              <input
-                id="npn"
-                value={planName}
-                onChange={(e) => setPlanName(e.target.value)}
-                placeholder="Ex.: Mensalista — joga + eventos"
-                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
-              />
-            </div>
-            <div className="w-full sm:w-32">
-              <label className="block text-xs font-medium text-slate-400" htmlFor="npa">
-                Valor (R$)
-              </label>
-              <input
-                id="npa"
-                inputMode="decimal"
-                value={planAmount}
-                onChange={(e) => setPlanAmount(e.target.value)}
-                placeholder="80"
-                className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={creatingPlan}
-              className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
-            >
-              {creatingPlan ? "…" : "Adicionar"}
-            </button>
-          </form>
-        </div>
-      )}
 
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -389,7 +251,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
             type="month"
             value={yearMonth}
             onChange={(e) => setYearMonth(e.target.value)}
-            className="mt-1 rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+            className="mt-1 rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-90"
           />
           <p className="mt-1 text-xs capitalize text-slate-500">{formatMonthLabel(yearMonth)}</p>
         </div>
@@ -407,73 +269,102 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       )}
 
       <ul className="mt-8 space-y-3">
-        {data.rows.map((row) => (
-          <li
-            key={row.userId}
-            className="flex flex-col gap-3 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-white">{row.fullName}</p>
-              <p className="text-xs text-slate-400">
-                {groupMemberRoleLabel(row.role)} · {formatBrazilPhoneDisplay(row.phone)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Plano atual:{" "}
-                {row.feePlan
-                  ? `${row.feePlan.name} (${formatBrlFromCents(row.feePlan.amountCents)})`
-                  : "não definido — defina em Membros"}
-              </p>
-              {row.paid && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Pago em {formatPaidAt(row.paidAt)}
-                  {row.paidWithPlan
-                    ? ` · ${row.paidWithPlan.name} (${formatBrlFromCents(row.paidWithPlan.amountCents)})`
-                    : ""}
-                  {row.recordedByName ? ` · registrado por ${row.recordedByName}` : ""}
-                </p>
-              )}
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {row.paid ? (
-                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                  Pago
-                </span>
-              ) : (
-                <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100">
-                  Em aberto
-                </span>
-              )}
-              {data.viewer.canManageMonthlyFees && (
-                <>
-                  {!row.paid ? (
-                    <button
-                      type="button"
-                      disabled={actingUserId !== null || !row.feePlan}
+        {data.rows.map((row) => {
+          const canMarkBacklog =
+            Boolean(row.feePlan) && Boolean(row.nextPaymentWillApplyToMonth);
+          const backlogTitle =
+            row.nextPaymentWillApplyToMonth &&
+            `Quitar ${formatMonthLabel(row.nextPaymentWillApplyToMonth)} (mais antigo em aberto)`;
+          return (
+            <li
+              key={row.userId}
+              className="flex flex-col gap-3 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white">{row.fullName}</p>
+                  {row.pastUnpaidMonthsCount > 0 ? (
+                    <span
+                      className="rounded-full border border-rose-500/45 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-200"
                       title={
-                        row.feePlan
-                          ? undefined
-                          : "Atribua um plano ao membro na página Membros do grupo."
+                        row.oldestUnpaidPastMonth
+                          ? `Desde ${formatMonthLabel(row.oldestUnpaidPastMonth)}`
+                          : undefined
                       }
-                      onClick={() => void markPaid(row.userId)}
-                      className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
                     >
-                      {actingUserId === row.userId ? "…" : "Marcar pago"}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={actingUserId !== null}
-                      onClick={() => void markUnpaid(row.userId)}
-                      className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
-                    >
-                      {actingUserId === row.userId ? "…" : "Desmarcar pago"}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </li>
-        ))}
+                      Atraso: {row.pastUnpaidMonthsCount}{" "}
+                      {row.pastUnpaidMonthsCount === 1 ? "mês anterior" : "meses anteriores"}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-slate-400">
+                  {groupMemberRoleLabel(row.role)} · {formatBrazilPhoneDisplay(row.phone)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Plano atual:{" "}
+                  {row.feePlan
+                    ? `${row.feePlan.name} (${formatBrlFromCents(row.feePlan.amountCents)})`
+                    : "não definido — defina em Membros"}
+                </p>
+                {row.paid && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatMonthLabel(data.periodMonth)}: pago em {formatPaidAt(row.paidAt)}
+                    {row.paidWithPlan
+                      ? ` · ${row.paidWithPlan.name} (${formatBrlFromCents(row.paidWithPlan.amountCents)})`
+                      : ""}
+                    {row.recordedByName ? ` · registrado por ${row.recordedByName}` : ""}
+                  </p>
+                )}
+                {!row.paid && row.feePlan && (
+                  <p className="mt-1 text-xs text-amber-200/80">
+                    {formatMonthLabel(data.periodMonth)} em aberto nesta visualização.
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {row.paid ? (
+                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+                    Pago ({formatMonthLabel(data.periodMonth)})
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100">
+                    Em aberto ({formatMonthLabel(data.periodMonth)})
+                  </span>
+                )}
+                {data.viewer.canManageMonthlyFees && (
+                  <>
+                    {canMarkBacklog ? (
+                      <button
+                        type="button"
+                        disabled={actingUserId !== null}
+                        title={backlogTitle ?? undefined}
+                        onClick={() => void markPaid(row.userId)}
+                        className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+                      >
+                        {actingUserId === row.userId
+                          ? "…"
+                          : row.nextPaymentWillApplyToMonth &&
+                              row.nextPaymentWillApplyToMonth !== data.periodMonth
+                            ? `Marcar pago (${formatMonthLabel(row.nextPaymentWillApplyToMonth)})`
+                            : "Marcar pago"}
+                      </button>
+                    ) : null}
+                    {row.paid ? (
+                      <button
+                        type="button"
+                        disabled={actingUserId !== null}
+                        onClick={() => void markUnpaid(row.userId)}
+                        className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
+                      >
+                        {actingUserId === row.userId ? "…" : "Desmarcar pago"}
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
