@@ -212,7 +212,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="w-full max-w-3xl px-4 py-10 md:px-6">
         <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
           ← Voltar ao grupo
         </Link>
@@ -224,7 +224,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
+    <div className="w-full max-w-3xl px-4 py-10 md:px-6">
       <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>

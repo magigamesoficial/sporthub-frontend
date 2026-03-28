@@ -395,7 +395,7 @@ export function GameDetailPanel({
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="w-full max-w-2xl px-4 py-10 md:px-6">
         <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
           ← Jogos do grupo
         </Link>
@@ -504,7 +504,7 @@ export function GameDetailPanel({
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
+    <div className="w-full max-w-4xl px-4 py-10 md:px-6">
       <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
         ← Lista de jogos
       </Link>

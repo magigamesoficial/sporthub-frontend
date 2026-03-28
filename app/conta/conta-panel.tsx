@@ -158,7 +158,7 @@ export function ContaPanel() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-10">
+      <div className="w-full max-w-lg px-4 py-10 md:px-6">
         <p className="text-slate-400">Não foi possível exibir os dados da conta.</p>
         <Link href="/login" className="mt-4 inline-block text-turf-bright hover:underline">
           Fazer login
@@ -168,7 +168,7 @@ export function ContaPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-10">
+    <div className="w-full max-w-lg px-4 py-10 md:px-6">
       <h1 className="font-display text-2xl font-bold text-white">Minha conta</h1>
       <p className="mt-1 text-sm text-slate-400">Atualize seus dados ou a senha de acesso.</p>
 

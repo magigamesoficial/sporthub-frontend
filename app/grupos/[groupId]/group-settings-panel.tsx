@@ -314,7 +314,7 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
 
   if (blocked && !data) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="w-full max-w-2xl px-4 py-10 md:px-6">
         <Link href="/dashboard" className="text-sm text-turf-bright hover:underline">
           ← Painel inicial
         </Link>
@@ -338,7 +338,7 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
   const canManageFeePlans = managedPlans?.canManage ?? false;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="w-full max-w-2xl px-4 py-10 md:px-6">
       <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>

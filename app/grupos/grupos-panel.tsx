@@ -71,7 +71,7 @@ export function GruposPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="w-full max-w-2xl px-4 py-10 md:px-6">
       <button
         type="button"
         onClick={() => router.push("/dashboard")}

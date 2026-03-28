@@ -136,7 +136,7 @@ export function ScoutsSettingsPanel({
         className={
           variant === "embedded"
             ? embeddedShell
-            : "mx-auto max-w-2xl px-4 py-10"
+            : "w-full max-w-2xl px-4 py-10 md:px-6"
         }
       >
         {variant === "page" ? (
@@ -156,7 +156,7 @@ export function ScoutsSettingsPanel({
   }
 
   const wrapClass =
-    variant === "embedded" ? embeddedShell : "mx-auto max-w-2xl px-4 py-10";
+    variant === "embedded" ? embeddedShell : "w-full max-w-2xl px-4 py-10 md:px-6";
 
   return (
     <section id="config-scouts" className={wrapClass} aria-labelledby="scouts-settings-heading">

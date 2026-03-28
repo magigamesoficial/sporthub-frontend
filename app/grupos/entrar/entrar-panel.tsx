@@ -98,7 +98,7 @@ export function EntrarPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-10">
+    <div className="w-full max-w-lg px-4 py-10 md:px-6">
       <button
         type="button"
         onClick={() => router.push("/dashboard")}

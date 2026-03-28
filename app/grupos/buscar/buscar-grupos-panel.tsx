@@ -146,7 +146,7 @@ export function BuscarGruposPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
+    <div className="w-full max-w-3xl px-4 py-10 md:px-6">
       <CreateGroupModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}

@@ -78,7 +78,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
+    <div className="w-full max-w-3xl px-4 py-10 md:px-6">
       <h1 className="font-display text-2xl font-bold text-white sm:text-3xl">
         Olá, {name.split(" ")[0]}!
       </h1>

@@ -182,7 +182,7 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="w-full max-w-2xl px-4 py-10 md:px-6">
         <Link href="/grupos/buscar" className="text-sm text-turf-bright hover:underline">
           ← Busca de grupos
         </Link>
@@ -206,7 +206,7 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
   const richOn = feePlans !== undefined;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="w-full max-w-2xl px-4 py-10 md:px-6">
       <Link href="/grupos/buscar" className="text-sm text-turf-bright hover:underline">
         ← Busca de grupos
       </Link>

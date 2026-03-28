@@ -490,7 +490,7 @@ export function AdminPanel() {
 
   return (
     <AdminLayoutShell activeTab={tab} onTabChange={setTab}>
-      <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
+      <div className="w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
       {tab === "users" && (
         <div className="space-y-4">
           <p className="text-xs text-slate-500">
