@@ -265,7 +265,7 @@ export function BuscarGruposPanel() {
                     {g.viewerIsMember ? (
                       <button
                         type="button"
-                        onClick={() => router.push(`/grupos/${g.id}`)}
+                        onClick={() => router.push(`/grupos/${g.id}/jogos`)}
                         className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright"
                       >
                         Abrir painel

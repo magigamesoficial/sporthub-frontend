@@ -133,7 +133,7 @@ export function RankingPanel({ groupId }: { groupId: string }) {
   if (!data) {
     return (
       <div className="w-full max-w-5xl px-4 py-10 md:px-6">
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+        <Link href={`/grupos/${groupId}/membros`} className="text-sm text-turf-bright hover:underline">
           ← Grupo
         </Link>
         <p className="mt-6 text-slate-500">Carregando…</p>
@@ -143,7 +143,7 @@ export function RankingPanel({ groupId }: { groupId: string }) {
 
   return (
     <div className="w-full max-w-6xl px-4 py-10 md:px-6">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+      <Link href={`/grupos/${groupId}/membros`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>
       <GroupSectionNav groupId={groupId} />

@@ -4,44 +4,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
-import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { groupMemberRoleLabel } from "@/lib/athlete-labels";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
+import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 import { GroupSectionNav } from "../group-section-nav";
 
 type FeePlan = { id: string; name: string; amountCents: number };
 
-type FeeRow = {
+type MonthCellState = { applicable: boolean; paid: boolean; paidAt: string | null };
+
+type YearRow = {
   userId: string;
   fullName: string;
   phone: string;
   role: string;
   feePlan: FeePlan | null;
-  paid: boolean;
-  paidAt: string | null;
-  paidWithPlan: FeePlan | null;
-  recordedByName: string | null;
-  pastUnpaidMonthsCount: number;
-  oldestUnpaidPastMonth: string | null;
-  nextPaymentWillApplyToMonth: string | null;
+  joinYm: string;
+  months: Record<string, MonthCellState>;
 };
 
-type FeesResponse = {
-  periodMonth: string;
-  todayYearMonth?: string;
+type YearSummaryResponse = {
+  year: number;
+  todayYearMonth: string;
   viewer: { canManageMonthlyFees: boolean };
-  rows: FeeRow[];
+  rows: YearRow[];
 };
 
 type ApiErr = { error?: string; code?: string };
-
-function currentYearMonthLocal(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
 
 function formatMonthLabel(ym: string): string {
   const [y, mo] = ym.split("-").map(Number);
@@ -51,28 +41,40 @@ function formatMonthLabel(ym: string): string {
   );
 }
 
-function formatPaidAt(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 function formatBrlFromCents(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function monthKeysForYear(year: number): string[] {
+  return Array.from(
+    { length: 12 },
+    (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`,
+  );
+}
+
+function monthShortHeaders(year: number): string[] {
+  return Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat("pt-BR", { month: "short" }).format(new Date(year, i, 1)),
+  );
+}
+
 export function MensalidadesPanel({ groupId }: { groupId: string }) {
   const router = useRouter();
-  const [yearMonth, setYearMonth] = useState(currentYearMonthLocal);
-  const [data, setData] = useState<FeesResponse | null>(null);
+  const defaultYear = new Date().getFullYear();
+  const [year, setYear] = useState(defaultYear);
+  const [data, setData] = useState<YearSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actingUserId, setActingUserId] = useState<string | null>(null);
+  const [actingKey, setActingKey] = useState<string | null>(null);
+
+  const ymList = useMemo(() => monthKeysForYear(year), [year]);
+  const monthLabels = useMemo(() => monthShortHeaders(year), [year]);
+
+  const yearOptions = useMemo(() => {
+    const y0 = defaultYear;
+    const list: number[] = [];
+    for (let y = y0 - 5; y <= y0 + 1; y += 1) list.push(y);
+    return list;
+  }, [defaultYear]);
 
   const load = useCallback(async () => {
     const token =
@@ -83,8 +85,8 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
     }
     setLoading(true);
     try {
-      const r = await apiJsonAuth<FeesResponse | ApiErr>(
-        `/groups/${groupId}/fees/${yearMonth}`,
+      const r = await apiJsonAuth<YearSummaryResponse | ApiErr>(
+        `/groups/${groupId}/fees/year/${year}`,
       );
       if (r.status === 401) {
         router.replace("/login");
@@ -100,7 +102,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
         setData(null);
         return;
       }
-      setData(r.data as FeesResponse);
+      setData(r.data as YearSummaryResponse);
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -113,28 +115,20 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [groupId, router, yearMonth]);
+  }, [groupId, router, year]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const summary = useMemo(() => {
-    if (!data) return { paid: 0, open: 0 };
-    const paid = data.rows.filter((x) => x.paid).length;
-    return { paid, open: data.rows.length - paid };
-  }, [data]);
-
-  async function markPaid(userId: string) {
-    setActingUserId(userId);
+  async function markPaid(userId: string, viewedYm: string) {
+    const key = `${userId}|${viewedYm}|pay`;
+    setActingKey(key);
     try {
       const r = await apiJsonAuth<
-        | {
-            fee?: { periodMonth: string };
-            appliedPeriodMonth?: string;
-          }
+        | { fee?: { periodMonth: string }; appliedPeriodMonth?: string }
         | ApiErr
-      >(`/groups/${groupId}/fees/${yearMonth}/mark-paid`, {
+      >(`/groups/${groupId}/fees/${viewedYm}/mark-paid`, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
@@ -150,7 +144,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       const applied = body.appliedPeriodMonth ?? body.fee?.periodMonth;
       toast.success(
         applied
-          ? `Pagamento baixado em ${formatMonthLabel(applied)} (sempre o mês mais antigo em aberto).`
+          ? `Baixado ${formatMonthLabel(applied)} (sempre o mês mais antigo em aberto até o mês clicado).`
           : "Pagamento registrado.",
       );
       await load();
@@ -163,15 +157,16 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
         toastNetworkError();
       }
     } finally {
-      setActingUserId(null);
+      setActingKey(null);
     }
   }
 
-  async function markUnpaid(userId: string) {
-    setActingUserId(userId);
+  async function markUnpaid(userId: string, periodYm: string) {
+    const key = `${userId}|${periodYm}|unpay`;
+    setActingKey(key);
     try {
       const r = await apiJsonAuth<{ ok?: boolean; removed?: number } | ApiErr>(
-        `/groups/${groupId}/fees/${yearMonth}/mark-unpaid`,
+        `/groups/${groupId}/fees/${periodYm}/mark-unpaid`,
         { method: "POST", body: JSON.stringify({ userId }) },
       );
       if (r.status === 401) {
@@ -186,7 +181,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
       if (body.removed === 0) {
         toast.message("Este mês já estava em aberto para esse membro.");
       } else {
-        toast.success("Marcado como em aberto.");
+        toast.success("Pagamento removido neste mês.");
       }
       await load();
     } catch (e) {
@@ -198,7 +193,7 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
         toastNetworkError();
       }
     } finally {
-      setActingUserId(null);
+      setActingKey(null);
     }
   }
 
@@ -212,9 +207,9 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
 
   if (!data) {
     return (
-      <div className="w-full max-w-3xl px-4 py-10 md:px-6">
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-          ← Voltar ao grupo
+      <div className="w-full max-w-6xl px-4 py-10 md:px-6">
+        <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
+          ← Jogos
         </Link>
         <p className="mt-6 text-sm text-slate-400">
           Confira a notificação na tela ou tente outro grupo.
@@ -224,148 +219,152 @@ export function MensalidadesPanel({ groupId }: { groupId: string }) {
   }
 
   return (
-    <div className="w-full max-w-3xl px-4 py-10 md:px-6">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-        ← Membros do grupo
+    <div className="w-full max-w-[100rem] px-4 py-10 md:px-6">
+      <Link href={`/grupos/${groupId}/membros`} className="text-sm text-turf-bright hover:underline">
+        ← Membros
       </Link>
       <GroupSectionNav groupId={groupId} />
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Mensalidades</h1>
-      <p className="mt-1 text-sm text-slate-400">
-        Cadastre os tipos de plano em{" "}
+      <p className="mt-1 max-w-3xl text-sm text-slate-400">
+        Cadastre planos em{" "}
         <Link href={`/grupos/${groupId}/configuracao`} className="text-turf-bright hover:underline">
-          Configurações do grupo
+          Configurações
+        </Link>{" "}
+        e atribua cada membro em{" "}
+        <Link href={`/grupos/${groupId}/membros`} className="text-turf-bright hover:underline">
+          Membros
         </Link>
-        . Atribua um plano a cada membro em «Membros do grupo». Ao marcar pago, o caixa recebe a
-        entrada e o pagamento <strong className="text-slate-300">sempre quita o mês mais antigo</strong>{" "}
-        ainda em aberto (até o mês de referência abaixo ou o mês atual).
+        . Na grade, clique em um mês em aberto para registrar pagamento: o sistema{" "}
+        <strong className="text-slate-300">sempre quita o mês mais antigo em aberto</strong> até o
+        mês da coluna (regra de fila). Em um mês pago, clique para desmarcar só esse mês.
       </p>
 
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300" htmlFor="ym">
-            Mês de referência
+          <label className="block text-sm font-medium text-slate-300" htmlFor="fee-year">
+            Ano
           </label>
-          <input
-            id="ym"
-            type="month"
-            value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
-            className="mt-1 rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-90"
-          />
-          <p className="mt-1 text-xs capitalize text-slate-500">{formatMonthLabel(yearMonth)}</p>
+          <select
+            id="fee-year"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="mt-1 rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
-        <div className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3 text-sm text-slate-300">
-          <span className="text-emerald-400">{summary.paid} em dia</span>
-          <span className="mx-2 text-slate-600">·</span>
-          <span className="text-amber-200/90">{summary.open} em aberto</span>
-        </div>
+        <p className="text-xs text-slate-500">
+          Mês corrente (servidor): <span className="text-slate-400">{data.todayYearMonth}</span>
+        </p>
       </div>
 
       {!data.viewer.canManageMonthlyFees && (
         <p className="mt-4 text-xs text-slate-500">
-          Apenas presidente, vice-presidente ou tesoureiro podem registrar ou desfazer pagamentos.
+          Apenas presidente, vice-presidente ou tesoureiro alteram pagamentos.
         </p>
       )}
 
-      <ul className="mt-8 space-y-3">
-        {data.rows.map((row) => {
-          const canMarkBacklog =
-            Boolean(row.feePlan) && Boolean(row.nextPaymentWillApplyToMonth);
-          const backlogTitle =
-            row.nextPaymentWillApplyToMonth &&
-            `Quitar ${formatMonthLabel(row.nextPaymentWillApplyToMonth)} (mais antigo em aberto)`;
-          return (
-            <li
-              key={row.userId}
-              className="flex flex-col gap-3 rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-white/10 bg-pitch-950/40">
+        <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
+          <thead>
+            <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
+              <th className="sticky left-0 z-10 bg-pitch-950/95 px-3 py-3 font-semibold backdrop-blur-sm">
+                Membro
+              </th>
+              <th className="whitespace-nowrap px-2 py-3 font-semibold">Plano</th>
+              {ymList.map((ym, idx) => (
+                <th
+                  key={ym}
+                  className="w-10 min-w-[2.5rem] px-1 py-3 text-center font-semibold capitalize text-slate-400"
+                  title={formatMonthLabel(ym)}
+                >
+                  {monthLabels[idx].replace(".", "")}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((row) => (
+              <tr key={row.userId} className="border-b border-white/5 last:border-0">
+                <td className="sticky left-0 z-10 bg-pitch-950/90 px-3 py-2 align-top backdrop-blur-sm">
                   <p className="font-medium text-white">{row.fullName}</p>
-                  {row.pastUnpaidMonthsCount > 0 ? (
-                    <span
-                      className="rounded-full border border-rose-500/45 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-200"
-                      title={
-                        row.oldestUnpaidPastMonth
-                          ? `Desde ${formatMonthLabel(row.oldestUnpaidPastMonth)}`
-                          : undefined
-                      }
-                    >
-                      Atraso: {row.pastUnpaidMonthsCount}{" "}
-                      {row.pastUnpaidMonthsCount === 1 ? "mês anterior" : "meses anteriores"}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-xs text-slate-400">
-                  {groupMemberRoleLabel(row.role)} · {formatBrazilPhoneDisplay(row.phone)}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Plano atual:{" "}
-                  {row.feePlan
-                    ? `${row.feePlan.name} (${formatBrlFromCents(row.feePlan.amountCents)})`
-                    : "não definido — defina em Membros"}
-                </p>
-                {row.paid && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatMonthLabel(data.periodMonth)}: pago em {formatPaidAt(row.paidAt)}
-                    {row.paidWithPlan
-                      ? ` · ${row.paidWithPlan.name} (${formatBrlFromCents(row.paidWithPlan.amountCents)})`
-                      : ""}
-                    {row.recordedByName ? ` · registrado por ${row.recordedByName}` : ""}
+                  <p className="text-[11px] text-slate-500">
+                    {groupMemberRoleLabel(row.role)} · {formatBrazilPhoneDisplay(row.phone)}
                   </p>
-                )}
-                {!row.paid && row.feePlan && (
-                  <p className="mt-1 text-xs text-amber-200/80">
-                    {formatMonthLabel(data.periodMonth)} em aberto nesta visualização.
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {row.paid ? (
-                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                    Pago ({formatMonthLabel(data.periodMonth)})
-                  </span>
-                ) : (
-                  <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100">
-                    Em aberto ({formatMonthLabel(data.periodMonth)})
-                  </span>
-                )}
-                {data.viewer.canManageMonthlyFees && (
-                  <>
-                    {canMarkBacklog ? (
+                </td>
+                <td className="max-w-[8rem] px-2 py-2 align-top text-xs text-slate-400">
+                  {row.feePlan ? (
+                    <>
+                      {row.feePlan.name}
+                      <span className="mt-0.5 block text-slate-500">
+                        {formatBrlFromCents(row.feePlan.amountCents)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-amber-200/70">Sem plano</span>
+                  )}
+                </td>
+                {ymList.map((ym) => {
+                  const cell = row.months[ym];
+                  const busyPay = actingKey === `${row.userId}|${ym}|pay`;
+                  const busyUnpay = actingKey === `${row.userId}|${ym}|unpay`;
+                  const busy = busyPay || busyUnpay;
+
+                  if (!cell?.applicable) {
+                    return (
+                      <td key={ym} className="p-1 align-middle text-center">
+                        <span
+                          className="mx-auto block h-8 w-8 rounded-md bg-white/5 text-center text-xs leading-8 text-slate-600"
+                          title="Sem mensalidade neste mês"
+                        >
+                          —
+                        </span>
+                      </td>
+                    );
+                  }
+
+                  if (cell.paid) {
+                    return (
+                      <td key={ym} className="p-1 align-middle text-center">
+                        <button
+                          type="button"
+                          title={`Pago · clique para desmarcar (${formatMonthLabel(ym)})`}
+                          disabled={!data.viewer.canManageMonthlyFees || busy}
+                          onClick={() => void markUnpaid(row.userId, ym)}
+                          className="h-8 w-full min-w-[2rem] rounded-md border border-emerald-500/45 bg-emerald-500/20 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {busyUnpay ? "…" : "✓"}
+                        </button>
+                      </td>
+                    );
+                  }
+
+                  return (
+                    <td key={ym} className="p-1 align-middle text-center">
                       <button
                         type="button"
-                        disabled={actingUserId !== null}
-                        title={backlogTitle ?? undefined}
-                        onClick={() => void markPaid(row.userId)}
-                        className="rounded-lg bg-turf px-3 py-1.5 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+                        title={`Marcar pago (quita o mais antigo em aberto até ${formatMonthLabel(ym)})`}
+                        disabled={
+                          !data.viewer.canManageMonthlyFees || !row.feePlan || busy
+                        }
+                        onClick={() => void markPaid(row.userId, ym)}
+                        className="h-8 w-full min-w-[2rem] rounded-md border border-amber-500/40 bg-amber-500/10 text-xs font-medium text-amber-100/90 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {actingUserId === row.userId
-                          ? "…"
-                          : row.nextPaymentWillApplyToMonth &&
-                              row.nextPaymentWillApplyToMonth !== data.periodMonth
-                            ? `Marcar pago (${formatMonthLabel(row.nextPaymentWillApplyToMonth)})`
-                            : "Marcar pago"}
+                        {busyPay ? "…" : "·"}
                       </button>
-                    ) : null}
-                    {row.paid ? (
-                      <button
-                        type="button"
-                        disabled={actingUserId !== null}
-                        onClick={() => void markUnpaid(row.userId)}
-                        className="rounded-lg border border-white/20 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
-                      >
-                        {actingUserId === row.userId ? "…" : "Desmarcar pago"}
-                      </button>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

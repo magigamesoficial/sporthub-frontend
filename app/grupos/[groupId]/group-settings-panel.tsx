@@ -339,8 +339,8 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
 
   return (
     <div className="w-full max-w-2xl px-4 py-10 md:px-6">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-        ← Membros do grupo
+      <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
+        ← Jogos
       </Link>
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">Configurações do grupo</h1>
@@ -413,8 +413,8 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
         </h2>
         <p className="mt-1 text-xs text-slate-500">
           Presidente, vice ou tesoureiro criam e excluem planos. Atribua um plano a cada membro em{" "}
-          <Link href={`/grupos/${groupId}`} className="text-turf-bright hover:underline">
-            Membros do grupo
+          <Link href={`/grupos/${groupId}/membros`} className="text-turf-bright hover:underline">
+            Membros
           </Link>
           ; registre pagamentos em{" "}
           <Link href={`/grupos/${groupId}/mensalidades`} className="text-turf-bright hover:underline">

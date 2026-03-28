@@ -174,8 +174,8 @@ export function JogosPanel({ groupId }: { groupId: string }) {
   if (!data) {
     return (
       <div className="w-full max-w-2xl px-4 py-10 md:px-6">
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-          ← Voltar ao grupo
+        <Link href="/grupos" className="text-sm text-turf-bright hover:underline">
+          ← Lista de grupos
         </Link>
         <p className="mt-6 text-sm text-slate-400">
           Confira a notificação na tela ou tente novamente.
@@ -186,8 +186,8 @@ export function JogosPanel({ groupId }: { groupId: string }) {
 
   return (
     <div className="w-full max-w-2xl px-4 py-10 md:px-6">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-        ← Membros do grupo
+      <Link href="/grupos" className="text-sm text-turf-bright hover:underline">
+        ← Lista de grupos
       </Link>
       <GroupSectionNav groupId={groupId} />
 

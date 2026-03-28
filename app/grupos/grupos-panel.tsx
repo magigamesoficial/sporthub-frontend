@@ -147,7 +147,7 @@ export function GruposPanel() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => router.push(`/grupos/${row.group.id}`)}
+                    onClick={() => router.push(`/grupos/${row.group.id}/jogos`)}
                     className="inline-flex shrink-0 items-center justify-center rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 transition hover:bg-turf-bright"
                   >
                     Ver grupo

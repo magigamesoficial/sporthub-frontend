@@ -225,7 +225,7 @@ export function GrupoVisaoPanel({ groupId }: { groupId: string }) {
       <div className="mt-6 flex flex-wrap gap-2">
         {viewerIsMember ? (
           <Link
-            href={`/grupos/${groupId}`}
+            href={`/grupos/${groupId}/jogos`}
             className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright"
           >
             Ir ao painel do grupo

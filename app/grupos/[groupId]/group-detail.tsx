@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
-import { groupMemberRoleHeading, groupMemberRoleLabel } from "@/lib/athlete-labels";
+import {
+  groupMemberRoleBadgeClass,
+  groupMemberRoleHeading,
+  groupMemberRoleLabel,
+} from "@/lib/athlete-labels";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toast } from "sonner";
 import { GroupSectionNav } from "./group-section-nav";
@@ -328,10 +332,16 @@ export function GroupDetail({ groupId }: { groupId: string }) {
             key={m.membershipId}
             className="rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-3"
           >
-            <p className="font-medium text-white">{m.user.fullName}</p>
-            <p className="text-xs text-slate-400">
-              {groupMemberRoleLabel(m.role)} · {formatBrazilPhoneDisplay(m.user.phone)} ·{" "}
-              {m.user.email}
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium text-white">{m.user.fullName}</p>
+              <span
+                className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${groupMemberRoleBadgeClass(m.role)}`}
+              >
+                {groupMemberRoleLabel(m.role)}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {formatBrazilPhoneDisplay(m.user.phone)} · {m.user.email}
             </p>
             {m.feePlan && (
               <p className="mt-1 text-xs text-slate-500">

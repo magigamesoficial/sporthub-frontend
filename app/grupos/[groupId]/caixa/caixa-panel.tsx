@@ -226,8 +226,8 @@ export function CaixaPanel({ groupId }: { groupId: string }) {
   if (!data) {
     return (
       <div className="w-full max-w-3xl px-4 py-10 md:px-6">
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-          ← Voltar ao grupo
+        <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
+          ← Jogos
         </Link>
         <p className="mt-6 text-sm text-slate-400">
           Confira a notificação na tela ou tente novamente.
@@ -240,7 +240,7 @@ export function CaixaPanel({ groupId }: { groupId: string }) {
 
   return (
     <div className="w-full max-w-3xl px-4 py-10 md:px-6">
-      <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+      <Link href={`/grupos/${groupId}/membros`} className="text-sm text-turf-bright hover:underline">
         ← Membros do grupo
       </Link>
       <GroupSectionNav groupId={groupId} />

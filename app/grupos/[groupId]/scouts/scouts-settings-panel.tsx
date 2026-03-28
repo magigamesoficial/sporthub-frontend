@@ -140,7 +140,7 @@ export function ScoutsSettingsPanel({
         }
       >
         {variant === "page" ? (
-          <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
+          <Link href={`/grupos/${groupId}/jogos`} className="text-sm text-turf-bright hover:underline">
             ← Grupo
           </Link>
         ) : null}
@@ -161,8 +161,8 @@ export function ScoutsSettingsPanel({
   return (
     <section id="config-scouts" className={wrapClass} aria-labelledby="scouts-settings-heading">
       {variant === "page" ? (
-        <Link href={`/grupos/${groupId}`} className="text-sm text-turf-bright hover:underline">
-          ← Membros do grupo
+        <Link href={`/grupos/${groupId}/membros`} className="text-sm text-turf-bright hover:underline">
+          ← Membros
         </Link>
       ) : null}
       {variant === "embedded" ? (

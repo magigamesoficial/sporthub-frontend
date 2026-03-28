@@ -159,7 +159,7 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
                 {myGroups.map((g) => (
                   <Link
                     key={g.id}
-                    href={`/grupos/${g.id}`}
+                    href={`/grupos/${g.id}/jogos`}
                     className={subLinkClass(groupPathActive(pathname, g.id))}
                     title={g.name}
                   >
@@ -237,7 +237,7 @@ export function LoggedInLayout({ children }: { children: React.ReactNode }) {
                   {myGroups.map((g) => (
                     <Link
                       key={g.id}
-                      href={`/grupos/${g.id}`}
+                      href={`/grupos/${g.id}/jogos`}
                       className={mobileLinkClass(groupPathActive(pathname, g.id))}
                     >
                       <span className="line-clamp-2">{g.name}</span>

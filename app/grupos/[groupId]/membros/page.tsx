@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { GroupDetail } from "../group-detail";
 
 export const metadata: Metadata = {
-  title: "Grupo — SportHub",
+  title: "Membros do grupo — SportHub",
 };
 
-export default async function GrupoPage({
+export default async function MembrosPage({
   params,
 }: {
   params: Promise<{ groupId: string }>;
 }) {
   const { groupId } = await params;
-  redirect(`/grupos/${groupId}/jogos`);
+  return <GroupDetail groupId={groupId} />;
 }

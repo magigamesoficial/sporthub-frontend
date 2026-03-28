@@ -83,7 +83,7 @@ export function EntrarPanel() {
         return;
       }
       toast.success("Solicitação enviada! Aguarde a aprovação de um líder.");
-      router.push(`/grupos/${preview.group.id}`);
+      router.push(`/grupos/${preview.group.id}/jogos`);
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
@@ -163,7 +163,7 @@ export function EntrarPanel() {
           {preview.isMember && (
             <button
               type="button"
-              onClick={() => router.push(`/grupos/${preview.group.id}`)}
+              onClick={() => router.push(`/grupos/${preview.group.id}/jogos`)}
               className="mt-4 inline-flex rounded-lg border border-turf/40 bg-turf/10 px-4 py-2 text-sm font-semibold text-turf-bright hover:bg-turf/20"
             >
               Abrir página do grupo →
