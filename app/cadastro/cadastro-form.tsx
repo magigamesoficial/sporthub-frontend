@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { BirthDateField } from "@/components/birth-date-field";
+import { parseFlexibleBirthToIso } from "@/lib/brazil-date";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
 
@@ -98,6 +100,12 @@ export function CadastroForm() {
       return;
     }
 
+    const birthIso = parseFlexibleBirthToIso(birthDate);
+    if (!birthIso) {
+      toast.error("Informe a data de nascimento válida (DD/MM/AAAA).");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const r = await apiJson<RegisterOk | RegisterErr>("/auth/register", {
@@ -106,7 +114,7 @@ export function CadastroForm() {
           fullName,
           email,
           phone,
-          birthDate,
+          birthDate: birthIso,
           password,
           captchaToken: captcha.token,
           captchaAnswer: captchaAnswer.trim(),
@@ -204,15 +212,7 @@ export function CadastroForm() {
             <label className="block text-sm font-medium text-slate-300" htmlFor="birthDate">
               Data de nascimento
             </label>
-            <input
-              id="birthDate"
-              name="birthDate"
-              type="date"
-              required
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none ring-turf/40 focus:ring-2"
-            />
+            <BirthDateField id="birthDate" value={birthDate} onChange={setBirthDate} className="mt-1" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300" htmlFor="password">

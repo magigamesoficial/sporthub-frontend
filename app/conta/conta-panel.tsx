@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJsonAuth, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { BirthDateField } from "@/components/birth-date-field";
+import { parseFlexibleBirthToIso } from "@/lib/brazil-date";
 import { formatBrazilPhoneDisplay } from "@/lib/format-brazil";
 import { toastFromApi, toastNetworkError } from "@/lib/toast";
 import { toast } from "sonner";
@@ -78,6 +80,11 @@ export function ContaPanel() {
   async function submitProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    const birthIso = parseFlexibleBirthToIso(birthDate);
+    if (!birthIso) {
+      toast.error("Informe uma data de nascimento válida (DD/MM/AAAA).");
+      return;
+    }
     setSavingProfile(true);
     try {
       const r = await apiJsonAuth<{ user: MeUser } | ApiErr>("/auth/me", {
@@ -85,7 +92,7 @@ export function ContaPanel() {
         body: JSON.stringify({
           fullName: fullName.trim(),
           email: email.trim(),
-          birthDate,
+          birthDate: birthIso,
         }),
       });
       if (!r.ok) {
@@ -94,6 +101,7 @@ export function ContaPanel() {
       }
       const u = (r.data as { user: MeUser }).user;
       setUser(u);
+      setBirthDate(birthToInput(u.birthDate));
       toast.success("Dados atualizados.");
     } catch {
       toastNetworkError();
@@ -217,14 +225,7 @@ export function ContaPanel() {
           <label className="block text-xs font-medium uppercase tracking-wide text-slate-500" htmlFor="acc-birth">
             Nascimento
           </label>
-          <input
-            id="acc-birth"
-            type="date"
-            required
-            value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
-          />
+          <BirthDateField id="acc-birth" value={birthDate} onChange={setBirthDate} className="mt-1" />
         </div>
         <button
           type="submit"
