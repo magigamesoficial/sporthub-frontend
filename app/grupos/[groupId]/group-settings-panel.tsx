@@ -25,6 +25,8 @@ type SettingsMember = {
   email: string;
 };
 
+type SportPositionOption = { value: string; label: string };
+
 type SettingsResponse = {
   periodMonth: string;
   group: {
@@ -40,7 +42,10 @@ type SettingsResponse = {
     rsvpDeadlineHoursBeforeStart: number | null;
     eventMaxParticipants: number | null;
     eventReservedSlots: number;
+    eventReservedSlotsPositionKey: string | null;
+    eventReservedSlotsPositionLabel: string | null;
   };
+  sportPositionOptions: SportPositionOption[];
   viewer: { canEditSettings: boolean };
   feePlans: FeePlanRow[];
   members: SettingsMember[];
@@ -81,6 +86,7 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
   const [rsvpDeadlineHours, setRsvpDeadlineHours] = useState("");
   const [eventMaxParticipants, setEventMaxParticipants] = useState("");
   const [eventReservedSlots, setEventReservedSlots] = useState("0");
+  const [eventReservedSlotsPositionKey, setEventReservedSlotsPositionKey] = useState("");
   const [savingMeta, setSavingMeta] = useState(false);
   const [roleBusyUserId, setRoleBusyUserId] = useState<string | null>(null);
   const [managedPlans, setManagedPlans] = useState<{
@@ -140,6 +146,7 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
         p.group.eventMaxParticipants != null ? String(p.group.eventMaxParticipants) : "",
       );
       setEventReservedSlots(String(p.group.eventReservedSlots ?? 0));
+      setEventReservedSlotsPositionKey(p.group.eventReservedSlotsPositionKey ?? "");
       setManagedPlans(
         plansMerged
           ? { list: plansMerged.plans, canManage: plansMerged.viewer.canManage }
@@ -180,6 +187,8 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
     try {
       const dh = rsvpDeadlineHours.trim();
       const maxP = eventMaxParticipants.trim();
+      const reservedN = Number(eventReservedSlots.replace(/\D/g, "")) || 0;
+      const posTrim = eventReservedSlotsPositionKey.trim();
       const body: Record<string, unknown> = {
         statuteUrl: statuteUrl.trim() === "" ? null : statuteUrl.trim(),
         localRulesNote: localRulesNote.trim() === "" ? null : localRulesNote.trim(),
@@ -187,7 +196,9 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
         rsvpAllowMaybe,
         rsvpDeadlineHoursBeforeStart: dh === "" ? null : Number(dh),
         eventMaxParticipants: maxP === "" ? null : Number(maxP),
-        eventReservedSlots: Number(eventReservedSlots.replace(/\D/g, "")) || 0,
+        eventReservedSlots: reservedN,
+        eventReservedSlotsPositionKey:
+          reservedN === 0 ? null : posTrim === "" ? null : posTrim,
       };
       const r = await apiJsonAuth<{ group: unknown } | ApiErr>(
         `/groups/${groupId}/settings`,
@@ -468,12 +479,44 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
                   min={0}
                   max={500}
                   value={eventReservedSlots}
-                  onChange={(e) => setEventReservedSlots(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEventReservedSlots(v);
+                    const n = Number(String(v).replace(/\D/g, "")) || 0;
+                    if (n === 0) setEventReservedSlotsPositionKey("");
+                  }}
                   disabled={!viewer.canEditSettings}
                   className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40 disabled:opacity-60"
                 />
               </label>
             </div>
+            {data.sportPositionOptions.length > 0 ? (
+              <label className="mt-3 block max-w-md">
+                <span className="text-xs font-medium text-slate-400">
+                  Posição destinada às vagas reservadas
+                </span>
+                <select
+                  value={eventReservedSlotsPositionKey}
+                  onChange={(e) => setEventReservedSlotsPositionKey(e.target.value)}
+                  disabled={
+                    !viewer.canEditSettings ||
+                    (Number(eventReservedSlots.replace(/\D/g, "")) || 0) === 0
+                  }
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40 disabled:opacity-60"
+                >
+                  <option value="">Não especificada</option>
+                  {data.sportPositionOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Quando há vagas reservadas, você pode indicar a função (ex.: goleiro) para orientar
+                  atletas na confirmação. Opcional.
+                </p>
+              </label>
+            ) : null}
           </div>
 
           {viewer.canEditSettings && (

@@ -30,6 +30,8 @@ type GameDetailResponse = {
     rsvpDeadlineHoursBeforeStart: number | null;
     eventMaxParticipants: number | null;
     eventReservedSlots: number;
+    eventReservedSlotsPositionKey: string | null;
+    eventReservedSlotsPositionLabel: string | null;
     deadlineAt: string | null;
     autoGoingCap: number | null;
   };
@@ -917,7 +919,11 @@ export function GameDetailPanel({
                   {" "}
                   (máx. {eventSettings.eventMaxParticipants} no evento
                   {eventSettings.eventReservedSlots > 0
-                    ? `, ${eventSettings.eventReservedSlots} vaga(s) reservada(s)`
+                    ? `, ${eventSettings.eventReservedSlots} vaga(s) reservada(s)${
+                        eventSettings.eventReservedSlotsPositionLabel
+                          ? ` (${eventSettings.eventReservedSlotsPositionLabel})`
+                          : ""
+                      }`
                     : ""}
                   )
                 </>
