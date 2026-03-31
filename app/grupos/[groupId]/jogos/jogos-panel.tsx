@@ -10,6 +10,7 @@ import { GroupSectionNav } from "../group-section-nav";
 
 type GameRow = {
   id: string;
+  kind: "MATCH" | "SOCIAL";
   title: string;
   location: string | null;
   startsAt: string;
@@ -18,7 +19,7 @@ type GameRow = {
   teamBScore: number | null;
   createdAt: string;
   createdBy: { id: string; fullName: string } | null;
-  counts: { GOING: number; MAYBE: number; NOT_GOING: number };
+  counts: { GOING: number; MAYBE: number; NOT_GOING: number; WAITLIST: number };
 };
 
 type GamesResponse = {
@@ -63,6 +64,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
+  const [eventKind, setEventKind] = useState<"MATCH" | "SOCIAL">("MATCH");
   const [location, setLocation] = useState("");
   const [startsAtLocal, setStartsAtLocal] = useState(defaultDatetimeLocalValue);
 
@@ -114,8 +116,8 @@ export function JogosPanel({ groupId }: { groupId: string }) {
   const emptyHint = useMemo(
     () =>
       listWhen === "future"
-        ? "Nenhum jogo futuro agendado. Crie o próximo — todos os membros podem marcar presença."
-        : "Ainda não há jogos no passado neste grupo.",
+        ? "Nenhum evento futuro. Crie o próximo — todos podem confirmar presença."
+        : "Ainda não há eventos passados neste grupo.",
     [listWhen],
   );
 
@@ -131,6 +133,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
       const r = await apiJsonAuth<{ game: { id: string } } | ApiErr>(`/groups/${groupId}/games`, {
         method: "POST",
         body: JSON.stringify({
+          kind: eventKind,
           title: title.trim() || undefined,
           location: location.trim() || undefined,
           startsAt: startsAt.toISOString(),
@@ -145,7 +148,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
         return;
       }
       const created = r.data as { game: { id: string } };
-      toast.success("Jogo agendado.");
+      toast.success("Evento agendado.");
       setTitle("");
       setLocation("");
       setStartsAtLocal(defaultDatetimeLocalValue());
@@ -191,17 +194,31 @@ export function JogosPanel({ groupId }: { groupId: string }) {
       </Link>
       <GroupSectionNav groupId={groupId} />
 
-      <h1 className="mt-4 font-display text-2xl font-bold text-white">Jogos</h1>
+      <h1 className="mt-4 font-display text-2xl font-bold text-white">Eventos</h1>
       <p className="mt-1 text-sm text-slate-400">
-        Agende jogos e veja quem confirmou presença. Qualquer membro pode criar; líderes podem
-        excluir.
+        Jogos, encontros e festas — veja confirmações e fila. Qualquer membro pode criar; líderes
+        podem excluir.
       </p>
 
       <form
         onSubmit={(e) => void onCreate(e)}
         className="mt-8 space-y-4 rounded-2xl border border-white/10 bg-pitch-900/60 p-6"
       >
-        <h2 className="font-display text-lg font-semibold text-white">Novo jogo</h2>
+        <h2 className="font-display text-lg font-semibold text-white">Novo evento</h2>
+        <div>
+          <label className="block text-sm text-slate-300" htmlFor="ev-kind">
+            Tipo
+          </label>
+          <select
+            id="ev-kind"
+            value={eventKind}
+            onChange={(e) => setEventKind(e.target.value as "MATCH" | "SOCIAL")}
+            className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+          >
+            <option value="MATCH">Jogo / pelada</option>
+            <option value="SOCIAL">Social / festivo / outro</option>
+          </select>
+        </div>
         <div>
           <label className="block text-sm text-slate-300" htmlFor="jtitle">
             Título (opcional)
@@ -244,7 +261,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
           disabled={creating}
           className="w-full rounded-xl bg-turf py-3 font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
         >
-          {creating ? "Criando…" : "Agendar jogo"}
+          {creating ? "Criando…" : "Agendar evento"}
         </button>
       </form>
 
@@ -274,7 +291,7 @@ export function JogosPanel({ groupId }: { groupId: string }) {
       </div>
 
       <h2 className="mt-4 font-display text-lg font-semibold text-white">
-        {listWhen === "future" ? "Próximos jogos" : "Histórico"}
+        {listWhen === "future" ? "Próximos eventos" : "Histórico"}
       </h2>
       {data.games.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">{emptyHint}</p>
@@ -287,7 +304,18 @@ export function JogosPanel({ groupId }: { groupId: string }) {
                 className="block rounded-xl border border-white/10 bg-pitch-950/40 px-4 py-4 transition hover:border-turf/30 hover:bg-pitch-950/60"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-white">{g.title}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                        g.kind === "SOCIAL"
+                          ? "border border-violet-400/40 bg-violet-500/15 text-violet-200"
+                          : "border border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
+                      }`}
+                    >
+                      {g.kind === "SOCIAL" ? "Social" : "Jogo"}
+                    </span>
+                    <p className="font-medium text-white">{g.title}</p>
+                  </div>
                   {listWhen === "past" && (
                     <span className="flex flex-wrap gap-1">
                       <span className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-slate-400">
@@ -312,7 +340,8 @@ export function JogosPanel({ groupId }: { groupId: string }) {
                   <p className="mt-1 text-xs text-slate-400">{g.location}</p>
                 )}
                 <p className="mt-2 text-xs text-slate-500">
-                  {g.counts.GOING} vão · {g.counts.MAYBE} talvez · {g.counts.NOT_GOING} não vão
+                  {g.counts.GOING} sim · {g.counts.MAYBE} talvez · {g.counts.NOT_GOING} não · fila{" "}
+                  {g.counts.WAITLIST ?? 0}
                   {g.createdBy && ` · por ${g.createdBy.fullName}`}
                 </p>
               </Link>

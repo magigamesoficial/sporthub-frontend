@@ -36,6 +36,10 @@ type SettingsResponse = {
     localRulesNote: string | null;
     richPublicProfile: boolean;
     presidentId: string;
+    rsvpAllowMaybe: boolean;
+    rsvpDeadlineHoursBeforeStart: number | null;
+    eventMaxParticipants: number | null;
+    eventReservedSlots: number;
   };
   viewer: { canEditSettings: boolean };
   feePlans: FeePlanRow[];
@@ -73,6 +77,10 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
   const [statuteUrl, setStatuteUrl] = useState("");
   const [localRulesNote, setLocalRulesNote] = useState("");
   const [richPublicProfile, setRichPublicProfile] = useState(false);
+  const [rsvpAllowMaybe, setRsvpAllowMaybe] = useState(true);
+  const [rsvpDeadlineHours, setRsvpDeadlineHours] = useState("");
+  const [eventMaxParticipants, setEventMaxParticipants] = useState("");
+  const [eventReservedSlots, setEventReservedSlots] = useState("0");
   const [savingMeta, setSavingMeta] = useState(false);
   const [roleBusyUserId, setRoleBusyUserId] = useState<string | null>(null);
   const [managedPlans, setManagedPlans] = useState<{
@@ -122,6 +130,16 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
       setStatuteUrl(p.group.statuteUrl ?? "");
       setLocalRulesNote(p.group.localRulesNote ?? "");
       setRichPublicProfile(p.group.richPublicProfile);
+      setRsvpAllowMaybe(p.group.rsvpAllowMaybe);
+      setRsvpDeadlineHours(
+        p.group.rsvpDeadlineHoursBeforeStart != null
+          ? String(p.group.rsvpDeadlineHoursBeforeStart)
+          : "",
+      );
+      setEventMaxParticipants(
+        p.group.eventMaxParticipants != null ? String(p.group.eventMaxParticipants) : "",
+      );
+      setEventReservedSlots(String(p.group.eventReservedSlots ?? 0));
       setManagedPlans(
         plansMerged
           ? { list: plansMerged.plans, canManage: plansMerged.viewer.canManage }
@@ -160,14 +178,16 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
     if (!data?.viewer.canEditSettings) return;
     setSavingMeta(true);
     try {
-      const body: {
-        statuteUrl?: string | null;
-        localRulesNote?: string | null;
-        richPublicProfile?: boolean;
-      } = {
+      const dh = rsvpDeadlineHours.trim();
+      const maxP = eventMaxParticipants.trim();
+      const body: Record<string, unknown> = {
         statuteUrl: statuteUrl.trim() === "" ? null : statuteUrl.trim(),
         localRulesNote: localRulesNote.trim() === "" ? null : localRulesNote.trim(),
         richPublicProfile,
+        rsvpAllowMaybe,
+        rsvpDeadlineHoursBeforeStart: dh === "" ? null : Number(dh),
+        eventMaxParticipants: maxP === "" ? null : Number(maxP),
+        eventReservedSlots: Number(eventReservedSlots.replace(/\D/g, "")) || 0,
       };
       const r = await apiJsonAuth<{ group: unknown } | ApiErr>(
         `/groups/${groupId}/settings`,
@@ -395,13 +415,74 @@ export function GroupSettingsPanel({ groupId }: { groupId: string }) {
               Exibir perfil público detalhado (planos, situação do mês, estatuto e regras)
             </span>
           </label>
+
+          <div className="border-t border-white/10 pt-4">
+            <h3 className="text-sm font-semibold text-white">Eventos e confirmações (RSVP)</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Vagas e prazo definem fila automática. Líderes podem confirmar qualquer membro na página do
+              evento.
+            </p>
+            <label className="mt-3 flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={rsvpAllowMaybe}
+                onChange={(e) => setRsvpAllowMaybe(e.target.checked)}
+                disabled={!viewer.canEditSettings}
+                className="h-4 w-4 rounded border-white/20 bg-pitch-950"
+              />
+              <span className="text-sm text-slate-300">Permitir resposta «Talvez» nos eventos</span>
+            </label>
+            <label className="mt-3 block">
+              <span className="text-xs font-medium text-slate-400">
+                Prazo para confirmações voluntárias (horas antes do evento)
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={8760}
+                placeholder="Ex.: 24 (vazio = só limite de vagas)"
+                value={rsvpDeadlineHours}
+                onChange={(e) => setRsvpDeadlineHours(e.target.value)}
+                disabled={!viewer.canEditSettings}
+                className="mt-1 w-full max-w-xs rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40 disabled:opacity-60"
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <label className="block min-w-[10rem] flex-1">
+                <span className="text-xs font-medium text-slate-400">Máx. de confirmados</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  placeholder="Ilimitado"
+                  value={eventMaxParticipants}
+                  onChange={(e) => setEventMaxParticipants(e.target.value)}
+                  disabled={!viewer.canEditSettings}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40 disabled:opacity-60"
+                />
+              </label>
+              <label className="block min-w-[10rem] flex-1">
+                <span className="text-xs font-medium text-slate-400">Vagas reservadas (ex.: goleiros)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={500}
+                  value={eventReservedSlots}
+                  onChange={(e) => setEventReservedSlots(e.target.value)}
+                  disabled={!viewer.canEditSettings}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-turf/40 disabled:opacity-60"
+                />
+              </label>
+            </div>
+          </div>
+
           {viewer.canEditSettings && (
             <button
               type="submit"
               disabled={savingMeta}
               className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
             >
-              {savingMeta ? "Salvando…" : "Salvar perfil e regras"}
+              {savingMeta ? "Salvando…" : "Salvar configurações"}
             </button>
           )}
         </form>

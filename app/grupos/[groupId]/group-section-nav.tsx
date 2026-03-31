@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ITEMS: { suffix: string; label: string }[] = [
-  { suffix: "jogos", label: "Jogos" },
+  { suffix: "jogos", label: "Eventos" },
   { suffix: "ranking", label: "Classificação" },
   { suffix: "mensalidades", label: "Mensalidades" },
   { suffix: "caixa", label: "Caixa" },
