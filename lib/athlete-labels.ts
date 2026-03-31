@@ -56,3 +56,17 @@ export function groupVisibilityLabel(v: string): string {
   if (v === "PRIVATE") return "Privado";
   return v;
 }
+
+/** Pé / mão predominante (valores do enum `DominantSide` na API). */
+export const DOMINANT_SIDE_SELECT_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Não informar" },
+  { value: "LEFT", label: "Esquerdo" },
+  { value: "RIGHT", label: "Direito" },
+  { value: "BOTH", label: "Ambos / indiferente" },
+];
+
+export function dominantSideLabel(code: string | null | undefined): string {
+  if (code == null || code === "") return "—";
+  const row = DOMINANT_SIDE_SELECT_OPTIONS.find((o) => o.value === code);
+  return row?.label ?? code;
+}

@@ -63,6 +63,8 @@ type GameDetailResponse = {
     fullName: string;
     phone: string;
     role: string;
+    positionKey: string | null;
+    positionLabel: string | null;
     attendance: {
       status: AttendanceStatus;
       teamSide: string | null;
@@ -75,6 +77,19 @@ type GameDetailResponse = {
 };
 
 type ApiErr = { error?: string; code?: string };
+
+function GoingPlayerNameCell({ m }: { m: GameDetailResponse["members"][number] }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <span className="block truncate text-sm text-white">{m.fullName}</span>
+      {m.positionLabel ? (
+        <span className="mt-0.5 block truncate text-[11px] leading-snug text-slate-500">
+          {m.positionLabel}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function formatGameWhen(iso: string): string {
   try {
@@ -102,11 +117,48 @@ function formatUnlocks(iso: string): string {
   }
 }
 
+/** Valor para `<input type="datetime-local">` no fuso local do navegador. */
+function isoToDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function shuffleInPlace<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
+}
+
+/** Alterna jogadores entre os times priorizando o time com menos jogadores; trata cada posição (perfil) em lotes para repartir goleiros, levantadores etc. */
+function balanceTeamsByPositionBuckets(
+  roster: { userId: string; positionKey: string | null }[],
+): { teamAIds: string[]; teamBIds: string[] } {
+  const buckets = new Map<string, string[]>();
+  for (const r of roster) {
+    const k = (r.positionKey && r.positionKey.trim()) || "__none__";
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k)!.push(r.userId);
+  }
+  const keys = [...buckets.keys()];
+  shuffleInPlace(keys);
+  const teamA: string[] = [];
+  const teamB: string[] = [];
+  for (const key of keys) {
+    const players = [...buckets.get(key)!];
+    shuffleInPlace(players);
+    for (const id of players) {
+      if (teamA.length <= teamB.length) teamA.push(id);
+      else teamB.push(id);
+    }
+  }
+  return { teamAIds: teamA, teamBIds: teamB };
+}
+
+function shareLineForPlayer(m: { fullName: string; positionLabel?: string | null }) {
+  return m.positionLabel ? `• ${m.fullName} (${m.positionLabel})` : `• ${m.fullName}`;
 }
 
 function waitlistSortKey(iso: string | null | undefined): number {
@@ -126,12 +178,12 @@ function buildAttendanceShareText(
   title: string,
   startsAt: string,
   location: string | null,
-  going: { fullName: string }[],
+  going: { fullName: string; positionLabel?: string | null }[],
   notGoing: { fullName: string }[],
   waitlist: { fullName: string }[],
 ): string {
   const head = formatEventSummaryLine(title, startsAt, location);
-  const gLines = going.map((m) => `• ${m.fullName}`).join("\n") || "—";
+  const gLines = going.map((m) => shareLineForPlayer(m)).join("\n") || "—";
   const nLines = notGoing.map((m) => `• ${m.fullName}`).join("\n") || "—";
   const wLines =
     waitlist.map((m, i) => `${i + 1}. ${m.fullName}`).join("\n") || "—";
@@ -151,14 +203,14 @@ function buildTeamsShareText(
   title: string,
   startsAt: string,
   location: string | null,
-  teamA: { fullName: string }[],
-  teamB: { fullName: string }[],
-  unassigned: { fullName: string }[],
+  teamA: { fullName: string; positionLabel?: string | null }[],
+  teamB: { fullName: string; positionLabel?: string | null }[],
+  unassigned: { fullName: string; positionLabel?: string | null }[],
 ): string {
   const head = formatEventSummaryLine(title, startsAt, location);
-  const aLines = teamA.map((m) => `• ${m.fullName}`).join("\n") || "—";
-  const bLines = teamB.map((m) => `• ${m.fullName}`).join("\n") || "—";
-  const uLines = unassigned.map((m) => `• ${m.fullName}`).join("\n") || "—";
+  const aLines = teamA.map((m) => shareLineForPlayer(m)).join("\n") || "—";
+  const bLines = teamB.map((m) => shareLineForPlayer(m)).join("\n") || "—";
+  const uLines = unassigned.map((m) => shareLineForPlayer(m)).join("\n") || "—";
   return `${head}
 
 *Time A (${teamA.length})*
@@ -191,6 +243,12 @@ export function GameDetailPanel({
   const [teamDraft, setTeamDraft] = useState<Record<string, string>>({});
   const [teamSaving, setTeamSaving] = useState(false);
   const [moderatingUserId, setModeratingUserId] = useState<string | null>(null);
+  const [editEventOpen, setEditEventOpen] = useState(false);
+  const [editKind, setEditKind] = useState<GameKind>("MATCH");
+  const [editTitle, setEditTitle] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editStartsAtLocal, setEditStartsAtLocal] = useState("");
+  const [eventDetailsSaving, setEventDetailsSaving] = useState(false);
 
   const load = useCallback(async () => {
     const token =
@@ -465,6 +523,69 @@ export function GameDetailPanel({
     }));
   }
 
+  function openEditEventForm() {
+    if (!data) return;
+    const { game: g } = data;
+    setEditKind(g.kind);
+    setEditTitle(g.title);
+    setEditLocation(g.location ?? "");
+    setEditStartsAtLocal(isoToDatetimeLocalValue(g.startsAt));
+    setEditEventOpen(true);
+  }
+
+  async function saveEventDetails() {
+    const startsAt = new Date(editStartsAtLocal);
+    if (Number.isNaN(startsAt.getTime())) {
+      toast.error("Data e hora inválidas.");
+      return;
+    }
+    setEventDetailsSaving(true);
+    try {
+      const r = await apiJsonAuth<
+        | {
+            game: {
+              id: string;
+              kind: GameKind;
+              title: string;
+              location: string | null;
+              startsAt: string;
+            };
+          }
+        | ApiErr
+      >(`/groups/${groupId}/games/${gameId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          mode: "details",
+          kind: editKind,
+          title: editTitle.trim(),
+          location: editLocation.trim(),
+          startsAt: startsAt.toISOString(),
+        }),
+      });
+      if (r.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!r.ok) {
+        toastFromApi(r.data as ApiErr, "Não foi possível salvar os dados do evento.");
+        return;
+      }
+      toast.success("Evento atualizado.");
+      setEditEventOpen(false);
+      await load();
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
+        toast.error(
+          "A URL da API não está configurada neste ambiente. Avise o administrador.",
+        );
+      } else {
+        toastNetworkError();
+      }
+    } finally {
+      setEventDetailsSaving(false);
+    }
+  }
+
   async function onDelete() {
     setDeleting(true);
     try {
@@ -514,6 +635,8 @@ export function GameDetailPanel({
   }
 
   const { game, viewer, members, scout, eventSettings } = data;
+  const canEditEventDetails =
+    viewer.canManageGames || (!!game.createdBy && game.createdBy.id === viewer.userId);
   const isMatch = game.kind === "MATCH";
   const unlocked = game.resultAndScoutUnlocked;
   const hasPlacar = game.teamAScore !== null && game.teamBScore !== null;
@@ -602,22 +725,24 @@ export function GameDetailPanel({
       toast.error("Sorteio não está disponível após o resultado do jogo ser lançado.");
       return;
     }
-    const ids = goingMembers.map((m) => m.userId);
-    if (ids.length === 0) {
+    if (goingMembers.length === 0) {
       toast.error("Ninguém confirmou presença (Sim) ainda.");
       return;
     }
-    const shuffled = [...ids];
-    shuffleInPlace(shuffled);
-    const cut = Math.ceil(shuffled.length / 2);
+    const roster = goingMembers.map((m) => ({
+      userId: m.userId,
+      positionKey: m.positionKey ?? null,
+    }));
+    const { teamAIds, teamBIds } = balanceTeamsByPositionBuckets(roster);
     setTeamDraft((prev) => {
       const next = { ...prev };
-      for (let i = 0; i < shuffled.length; i++) {
-        next[shuffled[i]!] = i < cut ? "TEAM_A" : "TEAM_B";
-      }
+      for (const id of teamAIds) next[id] = "TEAM_A";
+      for (const id of teamBIds) next[id] = "TEAM_B";
       return next;
     });
-    toast.success("Times sorteados. Ajuste se quiser e clique em Salvar times.");
+    toast.success(
+      "Times sorteados repartindo por posição do perfil (quando informada). Ajuste se quiser e salve.",
+    );
   }
 
   function shareAttendanceWhatsApp() {
@@ -684,6 +809,93 @@ export function GameDetailPanel({
       {game.location && <p className="mt-2 text-sm text-slate-400">{game.location}</p>}
       {game.createdBy && (
         <p className="mt-1 text-xs text-slate-500">Agendado por {game.createdBy.fullName}</p>
+      )}
+      {canEditEventDetails && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => (editEventOpen ? setEditEventOpen(false) : openEditEventForm())}
+            className="rounded-xl border border-white/20 bg-pitch-950/60 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-pitch-950"
+          >
+            {editEventOpen ? "Fechar edição" : "Editar dados do evento"}
+          </button>
+          {editEventOpen && (
+            <div className="mt-4 space-y-4 rounded-2xl border border-turf/25 bg-turf/5 p-6">
+              <h2 className="font-display text-base font-semibold text-white">Dados do evento</h2>
+              <p className="text-xs text-slate-500">
+                Quem criou o evento ou a diretoria pode alterar tipo, título, local e horário.
+              </p>
+              <div>
+                <label className="block text-sm text-slate-300" htmlFor="ev-edit-kind">
+                  Tipo
+                </label>
+                <select
+                  id="ev-edit-kind"
+                  value={editKind}
+                  onChange={(e) => setEditKind(e.target.value as GameKind)}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+                >
+                  <option value="MATCH">Jogo / pelada</option>
+                  <option value="SOCIAL">Social / festivo / outro</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-300" htmlFor="ev-edit-title">
+                  Título
+                </label>
+                <input
+                  id="ev-edit-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={120}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-300" htmlFor="ev-edit-loc">
+                  Local (opcional)
+                </label>
+                <input
+                  id="ev-edit-loc"
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  maxLength={200}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-300" htmlFor="ev-edit-when">
+                  Data e hora
+                </label>
+                <input
+                  id="ev-edit-when"
+                  type="datetime-local"
+                  value={editStartsAtLocal}
+                  onChange={(e) => setEditStartsAtLocal(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-white/15 bg-pitch-950/80 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-turf/40"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={eventDetailsSaving}
+                  onClick={() => void saveEventDetails()}
+                  className="rounded-xl bg-turf px-4 py-2 text-sm font-semibold text-pitch-950 hover:bg-turf-bright disabled:opacity-50"
+                >
+                  {eventDetailsSaving ? "Salvando…" : "Salvar alterações"}
+                </button>
+                <button
+                  type="button"
+                  disabled={eventDetailsSaving}
+                  onClick={() => setEditEventOpen(false)}
+                  className="rounded-xl border border-white/20 px-4 py-2 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
       {isMatch && !unlocked && (
         <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
@@ -801,6 +1013,12 @@ export function GameDetailPanel({
             ranking, com placar, vence quem estiver no time com mais gols; gols iguais contam como
             empate.
           </p>
+          <p className="mt-2 text-xs text-slate-500">
+            O botão de sorteio usa a <strong className="text-slate-400">posição cadastrada em Perfil</strong>{" "}
+            para alternar jogadores entre os times por função (ex.: goleiros, levantadores), o que
+            aproxima os lados. Quem não informou posição entra no mesmo sorteio, misturado com os
+            demais sem posição.
+          </p>
           <p className="mt-2 text-xs text-amber-200/90">
             Apenas <strong>presidente</strong>, <strong>vice-presidente</strong> e{" "}
             <strong>moderadores</strong> podem alterar times. O sorteio automático só aparece até o
@@ -814,7 +1032,7 @@ export function GameDetailPanel({
                   onClick={() => randomizeTeams()}
                   className="rounded-xl border border-white/20 bg-pitch-950/60 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-pitch-950"
                 >
-                  Sortear times aleatoriamente
+                  Sortear times (por posição do perfil)
                 </button>
               )}
               <button
@@ -855,12 +1073,17 @@ export function GameDetailPanel({
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
                         <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          <GoingPlayerNameCell m={m} />
                           {teamSideButtons(m)}
                         </div>
                       ) : (
                         <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
-                          {m.fullName}
+                          <span className="block text-slate-200">{m.fullName}</span>
+                          {m.positionLabel ? (
+                            <span className="mt-0.5 block text-[11px] text-slate-500">
+                              {m.positionLabel}
+                            </span>
+                          ) : null}
                         </span>
                       )}
                     </li>
@@ -874,12 +1097,17 @@ export function GameDetailPanel({
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
                         <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          <GoingPlayerNameCell m={m} />
                           {teamSideButtons(m)}
                         </div>
                       ) : (
                         <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
-                          {m.fullName}
+                          <span className="block text-slate-200">{m.fullName}</span>
+                          {m.positionLabel ? (
+                            <span className="mt-0.5 block text-[11px] text-slate-500">
+                              {m.positionLabel}
+                            </span>
+                          ) : null}
                         </span>
                       )}
                     </li>
@@ -895,12 +1123,17 @@ export function GameDetailPanel({
                     <li key={m.userId}>
                       {viewer.canAssignTeams ? (
                         <div className="flex min-h-[2.75rem] items-center justify-between gap-2 rounded-lg border border-white/10 bg-pitch-950/60 px-2 py-1.5">
-                          <span className="min-w-0 flex-1 truncate text-sm text-white">{m.fullName}</span>
+                          <GoingPlayerNameCell m={m} />
                           {teamSideButtons(m)}
                         </div>
                       ) : (
                         <span className="block min-h-[2.75rem] rounded-lg border border-white/5 bg-pitch-950/30 px-2 py-2 text-sm text-slate-200">
-                          {m.fullName}
+                          <span className="block text-slate-200">{m.fullName}</span>
+                          {m.positionLabel ? (
+                            <span className="mt-0.5 block text-[11px] text-slate-500">
+                              {m.positionLabel}
+                            </span>
+                          ) : null}
                         </span>
                       )}
                     </li>
@@ -1080,6 +1313,9 @@ export function GameDetailPanel({
             >
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-white">{m.fullName}</p>
+                {st === "GOING" && m.positionLabel ? (
+                  <p className="mt-0.5 text-xs text-slate-400">{m.positionLabel}</p>
+                ) : null}
                 <p className="text-xs text-slate-500">
                   {groupMemberRoleLabel(m.role)} · {formatBrazilPhoneDisplay(m.phone)}
                   {isMatch && m.attendance?.teamSide

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const ITEMS: { suffix: string; label: string }[] = [
   { suffix: "jogos", label: "Eventos" },
+  { suffix: "perfil", label: "Perfil" },
   { suffix: "ranking", label: "Classificação" },
   { suffix: "mensalidades", label: "Mensalidades" },
   { suffix: "caixa", label: "Caixa" },

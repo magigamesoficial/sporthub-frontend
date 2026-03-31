@@ -83,7 +83,8 @@ export function EntrarPanel() {
         return;
       }
       toast.success("Solicitação enviada! Aguarde a aprovação de um líder.");
-      router.push(`/grupos/${preview.group.id}/jogos`);
+      /** Ainda não é membro — /jogos retornaria 403; o perfil mostra o pedido pendente. */
+      router.push(`/grupos/${preview.group.id}/visao`);
     } catch (e) {
       if (e instanceof Error && e.message.includes("NEXT_PUBLIC_API_URL")) {
         toast.error(
