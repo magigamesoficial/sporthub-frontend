@@ -117,8 +117,9 @@ function waitlistSortKey(iso: string | null | undefined): number {
 
 function formatEventSummaryLine(title: string, whenIso: string, location: string | null): string {
   const when = formatGameWhen(whenIso);
-  const loc = location?.trim() ? `\n📍 ${location.trim()}` : "";
-  return `*${title}*\n🗓 ${when}${loc}`;
+  const loc = location?.trim() ? `\nLocal: ${location.trim()}` : "";
+  /** Sem emojis: ao abrir no WhatsApp, UTF-8 mal interpretado vira `` no começo da linha. */
+  return `*${title}*\nData/hora: ${when}${loc}`;
 }
 
 function buildAttendanceShareText(
